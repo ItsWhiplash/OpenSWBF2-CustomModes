@@ -1606,6 +1606,28 @@ bool Weapon::CycleZoom(bool bCycle)
     return false;
 }
 
+// OpenSWBF2: the zoom set outright rather than stepped (the Modern pad's hold-to-aim,
+// EntitySoldier::CheckForZoom): 0 out, 1 the first level, 2 a two-level scope's second (the first
+// on any other). A zoom that moves (ZoomRate) keeps its own level while aiming. Whether the
+// weapon is aimed now, as CycleZoom returns.
+bool Weapon::SetZoomLevel(int iLevel, bool bAiming)
+{
+    const WeaponClass* pClass = mClass;
+    if (iLevel <= 0 || (bAiming && pClass->mZoomRate != 0.0f))
+    {
+        if (iLevel <= 0 && bAiming)
+        {
+            mZoom = pClass->mZoomMin;
+            mZoomTurnScale = pClass->mZoomTurnDivisorMin;
+        }
+        return iLevel > 0;
+    }
+    const bool bSecond = iLevel >= 2 && pClass->mZoomMin != pClass->mZoomMax && pClass->mZoomRate == 0.0f;
+    mZoom = bSecond ? pClass->mZoomMax : pClass->mZoomMin;
+    mZoomTurnScale = bSecond ? pClass->mZoomTurnDivisorMax : pClass->mZoomTurnDivisorMin;
+    return true;
+}
+
 // FUNCTION: SWBF2 0x00677d40
 bool Weapon::ZoomFirstPerson() const
 {

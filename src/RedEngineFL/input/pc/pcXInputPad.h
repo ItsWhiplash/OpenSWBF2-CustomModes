@@ -277,17 +277,26 @@ enum BackResult
 };
 int BackStep(HoldTap& rState, bool bDown, bool bMapOpen, unsigned int uiNowMs);
 
-// Modern hold-to-aim on top of the game's zoom toggle (Weapon::CycleZoom:
-// off -> min -> max on two-level scopes -> off). Gives one zoom press, never
-// two frames running, whenever the aim state should change: in while LT is
-// held, out once it is released; RS while aiming on a two-level scope steps
-// to the other level (max -> off, and the held LT brings it back to min).
-struct AimZoom
+// Modern hold-to-aim: the zoom the player wants, in place of the game's zoom
+// toggle (Weapon::CycleZoom: off -> min -> max on two-level scopes -> off).
+// Aimed while LT is held, out once it is released; RS while held on a
+// two-level scope switches between its two levels. The level goes with every
+// move (ProcessedInputs::mPadAim) and the soldier takes it as it is
+// (EntitySoldier::CheckForZoom), on a host as in the player's own game.
+// Presses worked out from the soldier's aim state came in bursts online, where
+// that state lags the presses, and stepped the scope round at random.
+enum AimLevel
 {
-    bool bPressedLast;
-    bool bSecondPending;
+    kAimNone = 0,   // in a move: zoom from the zoom button, as retail
+    kAimOff = 1,
+    kAimFirst = 2,  // the scope's first level
+    kAimSecond = 3  // a two-level scope's second level
 };
-bool AimZoomPress(AimZoom& rState, bool bAimHeld, bool bSecondPressed, bool bAiming, bool bTwoLevel);
+struct AimStep
+{
+    bool bSecond;
+};
+int AimLevelStep(AimStep& rState, bool bAimHeld, bool bSecondPressed, bool bTwoLevel);
 
 // Modern: RS is lock-on (vehicles, droidekas, homing launchers), except that a press made
 // while a two-level scope is up (gPadScopeStepsZoom) steps the zoom instead. The choice is
@@ -300,15 +309,12 @@ struct RsLock
 bool RsLockTarget(RsLock& rState, bool bRSDown, bool bScopeStepsZoom);
 
 // Set by the input layer each frame: Modern is in effect on a connected XInput pad, LT is held,
-// RS was pressed this frame. The input layer turns them into zoom presses (AimZoomPress) in the
-// player's own inputs, so a host gets the same presses with the moves.
+// RS was pressed this frame. The input layer turns them into the move's aim level (AimLevelStep).
 extern bool gPadAimActive;
 extern bool gPadAimHeld;
 extern bool gPadSecondZoom;
-// Published by PlayerController for the local player on foot: aiming (zoomed in), and the
-// weapon has a two-level scope. Aiming with such a scope (gPadScopeStepsZoom) RS steps the zoom
-// rather than locking on.
-extern bool gPadLocalAiming;
+// Published by PlayerController for the local player on foot: the weapon has a two-level scope,
+// and aiming with it (gPadScopeStepsZoom) RS steps the zoom rather than locking on.
 extern bool gPadLocalTwoLevel;
 extern bool gPadScopeStepsZoom;
 

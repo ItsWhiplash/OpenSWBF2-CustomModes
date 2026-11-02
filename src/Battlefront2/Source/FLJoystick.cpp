@@ -41,6 +41,7 @@ ProcessedInputs::ProcessedInputs()
     bits.mMouseMode = 2;
     mPadLookLevel = 0;
     mPadBoost = 0;
+    mPadAim = 0;
 }
 
 // FUNCTION: SWBF2 0x0052b880

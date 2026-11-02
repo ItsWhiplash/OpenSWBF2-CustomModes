@@ -1205,7 +1205,7 @@ void RawControllerInputs::PadDefaultsProcess()
                 break;
             }
 
-            // Hold-to-aim inputs (XInputPad::AimZoomPress, after the loop).
+            // Hold-to-aim inputs (XInputPad::AimLevelStep, after the loop).
             XInputPad::gPadAimActive = true;
             XInputPad::gPadAimHeld =
                 XInputPad::gPadAimHeld || mRawInputFloat[iPort][XInputPad::kSlotLeftTrigger] >= 0.5f;
@@ -1245,15 +1245,15 @@ void RawControllerInputs::PadDefaultsProcess()
     {
         return;
     }
-    // Modern: LT held aims (the soldier's zoom is a toggle), RS steps two-level scopes. The press
-    // goes into the inputs themselves, so online the host zooms with the player; worked out in
-    // PlayerController, it never left this game and the host kept the soldier unzoomed.
-    static XInputPad::AimZoom sAimZoom;
-    if (XInputPad::gPadAimActive && (mMode == 0 || mMode == 3) && mProcessDestination->bits.mMouseMode == 0 &&
-        XInputPad::AimZoomPress(sAimZoom, XInputPad::gPadAimHeld, XInputPad::gPadSecondZoom,
-                                XInputPad::gPadLocalAiming, XInputPad::gPadLocalTwoLevel))
+    // Modern: LT held aims, RS steps two-level scopes. The zoom wanted goes with the move
+    // (XInputPad::AimLevelStep) and the soldier takes it in place of the zoom button, which LT also
+    // holds down: a press made on top of it for RS was no press at all.
+    static XInputPad::AimStep sAimStep;
+    mProcessDestination->mPadAim = XInputPad::kAimNone;
+    if (XInputPad::gPadAimActive && (mMode == 0 || mMode == 3) && mProcessDestination->bits.mMouseMode == 0)
     {
-        mProcessDestination->Set(ePROCESSEDINPUT_zoomButtonDown, bLocked, 1.0f, 0.0f);
+        mProcessDestination->mPadAim = (unsigned char)XInputPad::AimLevelStep(
+            sAimStep, XInputPad::gPadAimHeld, XInputPad::gPadSecondZoom, XInputPad::gPadLocalTwoLevel);
     }
     // The pad's look, for this game and the host alike (ProcessedInputs::mPadLookLevel).
     mProcessDestination->mPadLookLevel =

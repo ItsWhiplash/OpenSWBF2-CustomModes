@@ -77,8 +77,9 @@ bool IsValidTurnRate(int iDuration, int iTurns);
 // vehicles stuttered. 128 slots (7 bits) changes the wire format: kNetVersion says so.
 // The join's protocol version (retail 1): a client and a server that differ refuse the join
 // (JRR_VERSION) instead of misreading each other's updates. 2: the 128-object window. 3: moves
-// carry the pad's look (ProcessedInputs::mPadLookLevel / mPadBoost).
-const unsigned int kNetVersion = 3;
+// carry the pad's look (ProcessedInputs::mPadLookLevel / mPadBoost). 4: and its aim level
+// (ProcessedInputs::mPadAim).
+const unsigned int kNetVersion = 4;
 const int kNetObjSlots = 128;
 const int kNetObjBits = 7;
 const unsigned int kNetObjNone = kNetObjSlots - 1;

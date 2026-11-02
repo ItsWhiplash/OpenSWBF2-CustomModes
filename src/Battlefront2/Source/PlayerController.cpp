@@ -490,11 +490,11 @@ void PlayerController::Update(float dt)
 
     mOwner->mControlSpecialMove.Update(dt, (mJoystick->bits.mBoolInputs & 0x20000000) != 0);
     mOwner->mControlSprint.Update(dt, mJoystick->IsSprintButtonDown());
-    // OpenSWBF2: the Modern pad layout aims while LT is held (the soldier's
-    // zoom is a toggle), RS steps two-level scopes: the input layer makes the
-    // zoom presses (XInputPad::AimZoomPress) from the local soldier's state,
-    // published here. While such a scope is up RS is the next zoom, otherwise
-    // lock-on (XInputPad::RsLockTarget).
+    // OpenSWBF2: the Modern pad layout aims while LT is held, RS steps two-level
+    // scopes: the input layer puts the zoom wanted in the move
+    // (XInputPad::AimLevelStep), from the local soldier's weapon, published here.
+    // While such a scope is up RS is the next zoom, otherwise lock-on
+    // (XInputPad::RsLockTarget).
     const bool bLocalPlayer = NetGame::IsEnabled() ? NetGame::GetJoystickIndex(mOwner->mPlayerId) >= 0
                                                    : mOwner->mPlayerId >= 0;
     if (bLocalPlayer)
@@ -510,7 +510,6 @@ void PlayerController::Update(float dt)
                         pWeapon->mClass->mZoomRate == 0.0f;
             bAiming = mOwner->mTargetInfo.mIsAiming;
         }
-        XInputPad::gPadLocalAiming = bAiming;
         XInputPad::gPadLocalTwoLevel = bTwoLevel;
         XInputPad::gPadScopeStepsZoom = bTwoLevel && bAiming;
     }

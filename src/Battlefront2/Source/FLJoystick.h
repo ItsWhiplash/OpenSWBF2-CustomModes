@@ -112,6 +112,9 @@ public:
     // and the turn boost from the stick's tilt (XInputPad::BoostStep). In retail's padding.
     unsigned char mPadLookLevel;
     unsigned char mPadBoost;
+    // OpenSWBF2: the zoom a Modern pad player wants (XInputPad::AimLevel; 0 when the zoom button
+    // works it, as retail). Also with every move, also in the padding.
+    unsigned char mPadAim;
 };
  
  

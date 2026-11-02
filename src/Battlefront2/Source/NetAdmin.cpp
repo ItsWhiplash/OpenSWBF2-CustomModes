@@ -582,7 +582,7 @@ extern bool adminStatusRequested;
 // GLOBAL: SWBF2 0x01fa24d0
 bool admins[64];
 
-extern char Destination[16];
+extern char Destination[32];
 
 extern int netGameCount;
 
@@ -1670,8 +1670,8 @@ bool NetAdmin::ParseLineRemote(int iPlayer, unsigned short* pusLine, bool bConso
         case AC_ADMINPW:
             if (GetNextArg(pusLine, acToken, 32))
             {
-                strncpy(Destination, acToken, 16);
-                Destination[15] = 0;
+                strncpy(Destination, acToken, sizeof(Destination));
+                Destination[sizeof(Destination) - 1] = 0;
             }
             else
             {

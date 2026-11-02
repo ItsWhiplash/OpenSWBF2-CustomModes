@@ -69,7 +69,8 @@ TEST_CASE("the host hands an unclaimed hero to a bot" * doctest::test_suite("reg
     CHECK(Has(sNet, "bAiDue = NetHeroAi::AiHeroDue(bAllDeclined && bAnyHuman, fWaited);"));
     CHECK(Has(sNet, "else if (bAllDeclined && !bAiWaiting)"));
     CHECK(Has(sNet, "const int iBucket = NetHeroAi::PickBucket(bAiDue, aiCount[1], aiCount[0]);"));
-    CHECK(Has(sNet, "else if (IsEnabled() && !bAiDue)\n                        {\n                            continue;"));
+    // online only a live bot: one that can't spawn held the hero for good
+    CHECK(Has(sNet, "else if (IsEnabled() && (!bAiDue || !pCharacter->GetUnit()))\n                        {"));
     CHECK(Has(sNet, "static void PassHeroTurn(int iTeam)\n{\n    snHeroOpenTurn[iTeam] = 0;"));
     CHECK(Has(sNet, "    netHeroSpawnedTurn[iTeam] = 0;\n    snHeroOpenTurn[iTeam] = 0;\n}"));
     CHECK(Has(sNet, "OPENSWBF2 NET hero ai team=%d char=%d declined=%d"));
@@ -81,7 +82,7 @@ TEST_CASE("the host hands an unclaimed hero to a bot" * doctest::test_suite("reg
     // The chosen bot comes back as the hero, not as a class its team is short of, and a player
     // taking over its slot gives the hero turn back
     const std::string sTeam = ReadSource("../src/Battlefront2/Source/Team.cpp");
-    CHECK(Has(sTeam, "if (netHeroAIID[mTeamNumber] >= 0 && pCharacter == Character::GetPtr(netHeroAIID[mTeamNumber]))"));
+    CHECK(Has(sTeam, "if (mTeamNumber >= 0 && mTeamNumber < 3 && netHeroAIID[mTeamNumber] >= 0 &&\n        pCharacter == Character::GetPtr(netHeroAIID[mTeamNumber]))"));
     const std::string sChar = ReadSource("../src/Battlefront2/Source/Character.cpp");
     CHECK(Has(sChar, "{\n    NetGame::ReleaseAiHero(this);"));
 

@@ -656,7 +656,8 @@ bool Character::Update(float fDeltaTime)
             else
             {
                 ++iAIAlive;
-                if (!pFirstAI)
+                // OpenSWBF2: never the AI hero, whose removal costs the team the hero
+                if (!pFirstAI && !(pMember->mClassPtr && pMember->mClassPtr->mHeroFlag))
                 {
                     pFirstAI = pMember;
                 }

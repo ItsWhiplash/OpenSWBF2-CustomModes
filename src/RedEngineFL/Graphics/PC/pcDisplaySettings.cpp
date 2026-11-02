@@ -447,7 +447,12 @@ bool SaveIni(const DisplaySettings& kSettings, const char* pcPath, bool bGoodFra
     sprintf(acTemp, "%s.tmp", acFull);
     SetFileAttributesA(acTemp, FILE_ATTRIBUTE_NORMAL);
     DeleteFileA(acTemp);
-    CopyFileA(acFull, acTemp, FALSE);
+    // OpenSWBF2: a copy that fails left a temp file of only the keys being saved, which then
+    // replaced display.ini: every other setting went back to its default
+    if (GetFileAttributesA(acFull) != INVALID_FILE_ATTRIBUTES && !CopyFileA(acFull, acTemp, FALSE))
+    {
+        return false;
+    }
     SetFileAttributesA(acTemp, FILE_ATTRIBUTE_NORMAL);
     bool bOk = true;
     char acValue[32];

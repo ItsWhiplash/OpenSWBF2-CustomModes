@@ -4173,8 +4173,10 @@ void NetGame::HeroRulesUpdate(int iTeam)
                                 continue;
                             }
                         }
-                        else if (IsEnabled() && !bAiDue)
+                        else if (IsEnabled() && (!bAiDue || !pCharacter->GetUnit()))
                         {
+                            // OpenSWBF2: online only a bot that is alive: one that can't spawn (no
+                            // bots, a full team) held the hero, and humans never got it back
                             continue;
                         }
 

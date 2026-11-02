@@ -1105,7 +1105,7 @@ void Character::Spawn(const PblMatrix& mMatrix)
         }
         else
         {
-            int iHeroId = netHeroAIID[mTeamNumber];
+            int iHeroId = mTeamNumber >= 0 && mTeamNumber < 3 ? netHeroAIID[mTeamNumber] : -1;
             if (iHeroId != -1 && GetPtr(iHeroId) == this)
             {
                 NetGame::AcceptHero(mTeamNumber, iHeroId);

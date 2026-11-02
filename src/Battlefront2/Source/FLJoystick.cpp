@@ -58,6 +58,10 @@ void ProcessedInputs::Clear()
     {
         mFloatInputs[i] = 0.0f;
     }
+    // OpenSWBF2: and the pad's, or a paused move still zoomed on the host with LT
+    mPadLookLevel = 0;
+    mPadBoost = 0;
+    mPadAim = 0;
 }
 
 // FUNCTION: SWBF2 0x0052b920

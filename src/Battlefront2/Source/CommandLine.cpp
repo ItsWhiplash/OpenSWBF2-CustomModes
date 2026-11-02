@@ -96,7 +96,7 @@ bool GameMovie::sUseMovies = true;
 // GLOBAL: SWBF2 0x01ec0ace
 
 bool gMissionSpecified;
-char Destination[16];
+char Destination[32]; // OpenSWBF2: retail's 16 kept 15 characters; a login takes 31
 
 // GLOBAL: SWBF2 0x007e9030
 namespace PlayerPrefs { int gDefaultDifficulty = 2; }
@@ -617,8 +617,8 @@ void ParseCommandLine(int iArgc, char** const apcArgv)
             dragJitter = atoi(apcArgv[++i]);
             break;
         case 0x03D17781:
-            strncpy(Destination, apcArgv[++i], 16);
-            Destination[15] = '\0';
+            strncpy(Destination, apcArgv[++i], sizeof(Destination));
+            Destination[sizeof(Destination) - 1] = '\0';
             break;
         case 0x0451542B:
             PlayerProfile::SetSafeMode();

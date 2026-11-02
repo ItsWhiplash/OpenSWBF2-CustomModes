@@ -5913,7 +5913,9 @@ bool CNetFindGame::Update()
                     game->mFindData.mNumPlayers = data.mNumPlayers;
                     game->mFindData.mMaxPlayers = data.mMaxPlayers;
                     game->mFindData.mbIsFavorite = false;
-                    memset((unsigned char*)game + 241, 0, 64);
+                    // OpenSWBF2: the field, not retail's offset 241: on x64 that cleared the query
+                    // state (sequence, connected), so the browser re-queried every server for good
+                    memset(game->mFindData.mGalaxyLobbyPasswordData, 0, sizeof(game->mFindData.mGalaxyLobbyPasswordData));
                     if (game->mHasSessionData && GetGameCount() == 1)
                     {
                         curGame = itor;

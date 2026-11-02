@@ -531,8 +531,13 @@ int __stdcall GameWinMain(HINSTANCE hInstance, HINSTANCE, char* lpCmdLine, int)
         // timer resolution held headless runs to 64 frames, and so 64 updates, a second.
         timeBeginPeriod(1);
     }
+    // OpenSWBF2: a server or headless run counts only a command-line -fps as chosen: display.ini
+    // is the player's (the launcher hosts from the same folder), and its Frame cap Off (Fps=0)
+    // left a hosted server uncapped
+    const unsigned int uiFpsChosen = (g_bNoRender || gDedicatedShorthand) ? DisplayCfg::gDisplay.uiCliMask
+                                                                         : DisplayCfg::gDisplay.uiSet;
     DisplayCfg::gDisplay.uiFps = DisplayLogic::StartFpsCap(
-        DisplayCfg::gDisplay.uiFps, (DisplayCfg::gDisplay.uiSet & DisplayCfg::kFps) != 0, g_bNoRender,
+        DisplayCfg::gDisplay.uiFps, (uiFpsChosen & DisplayCfg::kFps) != 0, g_bNoRender,
         gDedicatedShorthand, netFPS > 0 ? (unsigned int)netFPS : 0u);
     XInputPad::gPadLayout =
         DisplayCfg::gDisplay.uiPadLayout ? XInputPad::kLayoutLegacy : XInputPad::kLayoutModern;

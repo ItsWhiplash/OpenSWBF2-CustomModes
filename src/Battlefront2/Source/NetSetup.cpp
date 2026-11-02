@@ -27,6 +27,7 @@
 #include "MissionPlayList.h"
 #include "NetComm.h"
 #include "NetGame.h"
+#include "NetLobby.h"
 #include "NetPacket.h"
 #include "NetWire.h"
 #include "RedEngineFL/Util/RedLog.h"
@@ -6455,6 +6456,9 @@ void CNetPostLoadHostGame::Update()
         NetComm::Send(player, PKT_LOAD, group.pktPtr);
     }
 
+    // OpenSWBF2: once the match is over, one who isn't playing yet holds the next map only briefly
+    // (NetLobby::kGameOverJoinWait); dropped, its load of this map can't reach the next one
+    const bool bGameOverDrop = NetLobby::GameOverWaitDone(NetGame::GetGameOverWaitStart(), NetComm::GetTime());
     for (i = 0; i < netCurMaxPlayers; ++i)
     {
         if (!NetComm::IsConnected(i) || NetGame::IsPlaying(i, false))
@@ -6471,10 +6475,13 @@ void CNetPostLoadHostGame::Update()
         {
             timeout = 60.0f;
         }
-        if (elapsed > timeout)
+        if (elapsed > timeout || bGameOverDrop)
         {
             LOG(LogNet, Inform, "OPENSWBF2 NET drop player=%d reason=%s silent=%.1f", i,
-                shellState.players[i].quitRequested ? "quit" : ((loadingMask & (1ULL << i)) ? "load" : "timeout"),
+                shellState.players[i].quitRequested ? "quit"
+                : elapsed <= timeout                ? "gameover"
+                : (loadingMask & (1ULL << i))       ? "load"
+                                                    : "timeout",
                 elapsed);
             NetGameP::SetPlayerName(i, "");
             NetGame::SetPlayerGSID(i, 0);

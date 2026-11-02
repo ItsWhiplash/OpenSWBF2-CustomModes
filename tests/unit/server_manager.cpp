@@ -114,6 +114,17 @@ TEST_CASE("the lobby rides on the pre-game time's top value" * doctest::test_sui
     CHECK(NetLobby::kMaxPreGameTime < NetLobby::kLobbyPreGameTime);
 }
 
+TEST_CASE("a finished match waits briefly for players still loading it" * doctest::test_suite("unit"))
+{
+    // 0: the match still runs, so nobody is dropped however late it is
+    CHECK(!NetLobby::GameOverWaitDone(0.0f, 900.0f));
+    CHECK(!NetLobby::GameOverWaitDone(850.0f, 850.0f));
+    CHECK(!NetLobby::GameOverWaitDone(850.0f, 850.0f + NetLobby::kGameOverJoinWait));
+    CHECK(NetLobby::GameOverWaitDone(850.0f, 850.1f + NetLobby::kGameOverJoinWait));
+    // far below the 60 s a stuck loader held the next map for
+    CHECK(NetLobby::kGameOverJoinWait <= 5.0f);
+}
+
 TEST_CASE("rotation edits keep the next map next" * doctest::test_suite("unit"))
 {
     using namespace MissionPlayListOps;

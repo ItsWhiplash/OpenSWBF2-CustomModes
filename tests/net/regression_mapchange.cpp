@@ -108,6 +108,32 @@ TEST_CASE("an admin keeps its session and pushes across a map change" * doctest:
     CHECK(sAdmin.find("remoteLoggedIn = false;", uFailed) < sAdmin.find("continue;", uFailed));
 }
 
+TEST_CASE("a client stuck loading doesn't hold the next map" * doctest::test_suite("regression"))
+{
+    // The next map waited for every connected player who wasn't playing (NetGame::IsGameOver), so
+    // one stuck loading held a dedicated server's map change until its 60 s load timeout, and the
+    // players who had gone ahead timed out waiting for the host.
+    const std::string sNet = ReadSource("../src/Battlefront2/Source/NetGame.cpp");
+    const std::string sSetup = ReadSource("../src/Battlefront2/Source/NetSetup.cpp");
+    CHECK(sNet.find("if (!IsPlaying(i, false) && NetComm::IsConnected(i))\n            {\n                return false;") !=
+          std::string::npos);
+    CHECK(sNet.find("float NetGame::GetGameOverWaitStart()\n{\n    return clientDisconnectStartTime;") !=
+          std::string::npos);
+
+    // The host's drop loop lets them go once the wait is over: disconnected, a load ack for the
+    // old map from them is discarded instead of reading as loaded on the next
+    const size_t uUpdate = sSetup.find("void CNetPostLoadHostGame::Update()");
+    REQUIRE(uUpdate != std::string::npos);
+    const size_t uWait = sSetup.find(
+        "const bool bGameOverDrop = NetLobby::GameOverWaitDone(NetGame::GetGameOverWaitStart(), NetComm::GetTime());",
+        uUpdate);
+    REQUIRE(uWait != std::string::npos);
+    const size_t uDrop = sSetup.find("if (elapsed > timeout || bGameOverDrop)", uWait);
+    REQUIRE(uDrop != std::string::npos);
+    CHECK(sSetup.find("? \"gameover\"", uDrop) < sSetup.find("NetComm::Disconnect(i);", uDrop));
+    CHECK(sSetup.find("NetComm::Disconnect(i);", uDrop) < sSetup.find("SendUpdates();", uDrop));
+}
+
 TEST_CASE("nobody keeps a deleted vehicle and bots made from players get the right team" *
           doctest::test_suite("regression"))
 {

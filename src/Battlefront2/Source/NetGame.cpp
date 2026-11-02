@@ -10793,6 +10793,20 @@ GameObject* CreateObject(unsigned int uniqId, EntityClass* entityClass, int init
 GameObject* ReadCreate(NetPktGroup& group, unsigned int uniqId)
 {
     EntityClass* entityClass = ReadEntityClass(group);
+    if (!entityClass)
+    {
+        // OpenSWBF2: a class this game hasn't loaded (an update for a map it isn't on: one that
+        // finished loading after the host moved on). The rest of the update can't be read past it,
+        // so it is dropped; retail went on with a null class and crashed.
+        static int siLogged;
+        if (siLogged < 5)
+        {
+            ++siLogged;
+            LOG(LogNet, Warning, "OPENSWBF2 NET object of an unknown class, update dropped");
+        }
+        group.SetBad();
+        return 0;
+    }
     unsigned int player = (unsigned int)-1;
     int playerId = -1;
     bool hasPlayer;
@@ -10920,6 +10934,10 @@ bool ReadObject(NetPktGroup& group)
                 return false;
             }
             object = ReadCreate(group, index);
+            if (!object)
+            {
+                return false;
+            }
         }
         else
         {
@@ -10929,6 +10947,12 @@ bool ReadObject(NetPktGroup& group)
                 return false;
             }
             NetObj* netObj = (NetObj*)clientObjMap[index];
+            if (!netObj || !netObj->obj)
+            {
+                // OpenSWBF2: a slot this game never had created (the same stale update as above)
+                group.SetBad();
+                return false;
+            }
             netObj->usedTurn = clientHostTurnNumber;
             object = netObj->obj;
         }

@@ -1190,6 +1190,21 @@ void RawControllerInputs::PadDefaultsProcess()
             break;
         }
 
+        // The hero offer, in both layouts: hold D-pad Left to take the hero, Right to turn it down.
+        static XInputPad::HoldTap sHoldHeroAccept[10];
+        static XInputPad::HoldTap sHoldHeroDecline[10];
+        switch (XInputPad::HeroStep(sHoldHeroAccept[iPort], sHoldHeroDecline[iPort],
+                                    mRawInputFloat[iPort][XInputPad::kBitDPadLeft] >= 0.5f,
+                                    mRawInputFloat[iPort][XInputPad::kBitDPadRight] >= 0.5f, GetTickCount()))
+        {
+        case XInputPad::kHeroAccept:
+            mProcessDestination->Set(ePROCESSEDINPUT_acceptHeroPressed, bLocked, 1.0f, 0.0f);
+            break;
+        case XInputPad::kHeroDecline:
+            mProcessDestination->Set(ePROCESSEDINPUT_declineHeroPressed, bLocked, 1.0f, 0.0f);
+            break;
+        }
+
         if (bModern)
         {
             // X: tap reloads, hold uses (gets in or out of a vehicle).

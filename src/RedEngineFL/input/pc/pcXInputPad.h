@@ -266,6 +266,16 @@ struct HoldTap
 };
 int HoldTapStep(HoldTap& rState, bool bDown, unsigned int uiNowMs);
 
+// The hero offer: holding D-pad Left (kUseHoldMs) accepts it, holding D-pad Right declines; a tap
+// does nothing, so a stray press can't take or turn down the hero. One result per hold.
+enum HeroResult
+{
+    kHeroNone = 0,
+    kHeroAccept = 1,
+    kHeroDecline = 2
+};
+int HeroStep(HoldTap& rAccept, HoldTap& rDecline, bool bLeftDown, bool bRightDown, unsigned int uiNowMs);
+
 // Back: kBackPlayerList on a tap, kBackMap (the map toggle) on a hold. While the
 // map is open, a press closes it at once and is used up: no player list on its
 // release and no hold.

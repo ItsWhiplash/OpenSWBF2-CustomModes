@@ -289,8 +289,9 @@ int DefaultSlot(int iLayout, int iMode, int iAction)
     case kActZoom:          return bJedi ? -1 : (bModern ? kSlotLeftTrigger : kBitRS);
     case kActView:          return bJedi ? -1 : kBitDPadDown;
     case kActSquadCommand:  return kBitDPadUp;
-    case kActAcceptHero:    return kBitDPadRight;
-    case kActDeclineHero:   return kBitDPadLeft;
+    // held D-pad Left / Right (HeroStep), not a slot
+    case kActAcceptHero:    return -1;
+    case kActDeclineHero:   return -1;
     case kActPrimaryNext:   return bJedi ? -1 : (bModern ? kBitY : kBitRB);
     case kActSecondaryNext: return kBitLB;
     // Back is the player list on a tap and the map on a hold (pcFLJoystick's PadDefaultsProcess)
@@ -362,6 +363,14 @@ const char* ActionLabel(int iLayout, int iMode, int iAction)
     {
         return "Hold Back (Back closes it)";
     }
+    if (iAction == kActAcceptHero)
+    {
+        return "Hold D-pad Left";
+    }
+    if (iAction == kActDeclineHero)
+    {
+        return "Hold D-pad Right";
+    }
     return SlotLabel(DefaultSlot(iLayout, iMode, iAction));
 }
 
@@ -428,6 +437,14 @@ int ActionGlyph(int iLayout, int iMode, int iAction)
     if (iAction == kActPlayerList || iAction == kActMap)
     {
         return kGlyphBack;
+    }
+    if (iAction == kActAcceptHero)
+    {
+        return kGlyphDPadLeft;
+    }
+    if (iAction == kActDeclineHero)
+    {
+        return kGlyphDPadRight;
     }
     return GlyphForSlot(DefaultSlot(iLayout, iMode, iAction));
 }
@@ -592,6 +609,21 @@ int HoldTapStep(HoldTap& rState, bool bDown, unsigned int uiNowMs)
         }
     }
     return kHoldNone;
+}
+
+int HeroStep(HoldTap& rAccept, HoldTap& rDecline, bool bLeftDown, bool bRightDown, unsigned int uiNowMs)
+{
+    const int iAccept = HoldTapStep(rAccept, bLeftDown, uiNowMs);
+    const int iDecline = HoldTapStep(rDecline, bRightDown, uiNowMs);
+    if (iAccept == kHoldHeld)
+    {
+        return kHeroAccept;
+    }
+    if (iDecline == kHoldHeld)
+    {
+        return kHeroDecline;
+    }
+    return kHeroNone;
 }
 
 int BackStep(HoldTap& rState, bool bDown, bool bMapOpen, unsigned int uiNowMs)

@@ -498,6 +498,42 @@ TEST_CASE("xinput modern x taps reload and holds use" * doctest::test_suite("uni
     CHECK(kUseHoldMs == 500);
 }
 
+TEST_CASE("xinput holding the d-pad left takes the hero and right turns it down" * doctest::test_suite("unit"))
+{
+    for (int iLayout = 0; iLayout < kLayoutCount; ++iLayout)
+    {
+        for (int iMode = 0; iMode < kModeCount; ++iMode)
+        {
+            CHECK(strcmp(ActionLabel(iLayout, iMode, kActAcceptHero), "Hold D-pad Left") == 0);
+            CHECK(strcmp(ActionLabel(iLayout, iMode, kActDeclineHero), "Hold D-pad Right") == 0);
+            CHECK(ActionGlyph(iLayout, iMode, kActAcceptHero) == kGlyphDPadLeft);
+            CHECK(ActionGlyph(iLayout, iMode, kActDeclineHero) == kGlyphDPadRight);
+            // the offer is a hold, not a bound press
+            CHECK(DefaultSlot(iLayout, iMode, kActAcceptHero) == -1);
+            CHECK(DefaultSlot(iLayout, iMode, kActDeclineHero) == -1);
+        }
+    }
+
+    HoldTap accept = {};
+    HoldTap decline = {};
+    // a tap of either does nothing
+    CHECK(HeroStep(accept, decline, true, false, 1000) == kHeroNone);
+    CHECK(HeroStep(accept, decline, false, false, 1200) == kHeroNone);
+    CHECK(HeroStep(accept, decline, false, true, 1300) == kHeroNone);
+    CHECK(HeroStep(accept, decline, false, false, 1400) == kHeroNone);
+    // holding Left accepts once, at the hold time
+    CHECK(HeroStep(accept, decline, true, false, 2000) == kHeroNone);
+    CHECK(HeroStep(accept, decline, true, false, 2000 + kUseHoldMs - 1) == kHeroNone);
+    CHECK(HeroStep(accept, decline, true, false, 2000 + kUseHoldMs) == kHeroAccept);
+    CHECK(HeroStep(accept, decline, true, false, 2000 + kUseHoldMs + 500) == kHeroNone);
+    CHECK(HeroStep(accept, decline, false, false, 3500) == kHeroNone);
+    // holding Right declines once
+    CHECK(HeroStep(accept, decline, false, true, 4000) == kHeroNone);
+    CHECK(HeroStep(accept, decline, false, true, 4000 + kUseHoldMs) == kHeroDecline);
+    CHECK(HeroStep(accept, decline, false, true, 4000 + kUseHoldMs + 100) == kHeroNone);
+    CHECK(HeroStep(accept, decline, false, false, 5000) == kHeroNone);
+}
+
 TEST_CASE("xinput back taps the player list and holds the map" * doctest::test_suite("unit"))
 {
     for (int iLayout = 0; iLayout < kLayoutCount; ++iLayout)

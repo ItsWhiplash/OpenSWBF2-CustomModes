@@ -284,6 +284,8 @@ public:
     static bool DoesHostKnowILoaded();
     static bool IsReadyToPlay();
     static bool IsGameOver();
+    // OpenSWBF2 host: when IsGameOver was first asked about this mission (NetComm time), else 0
+    static float GetGameOverWaitStart();
     static bool CanQuit();
     static void BeginShell(int iStage);
     static void EndShell(int iStage);

@@ -1694,6 +1694,11 @@ bool NetGame::IsGameOver()
     return true;
 }
 
+float NetGame::GetGameOverWaitStart()
+{
+    return clientDisconnectStartTime;
+}
+
 // FUNCTION: SWBF2 0x005b51b0
 void NetGame::Init()
 {

@@ -955,11 +955,10 @@ int SetUnitCount(lua_State* L)
         {
             LOG(LogNet, Inform, "OPENSWBF2 NET units team=%d map=%d raised=%d", iTeam, iCount, iUnits);
         }
-        if (NetGame::ServerBots())
-        {
-            siMapUnits[iTeam] = iCount;
-            siServerUnits[iTeam] = iUnits;
-        }
+        // and its classes alike, on clients too: a client that kept the map's class limits
+        // refused a class the server's bots had filled to the old limit (officer, special)
+        siMapUnits[iTeam] = iCount;
+        siServerUnits[iTeam] = iUnits;
         iCount = iUnits;
     }
     SpawnManager::Instance()->SetUnitCount(iTeam, iCount);
@@ -1128,7 +1127,7 @@ int AddUnitClass(lua_State* L)
             iMaxUnits = 0;
         }
     }
-    if (NetGame::ServerBots() && (iTeam == 1 || iTeam == 2))
+    if (NetGame::IsEnabled() && (iTeam == 1 || iTeam == 2))
     {
         // OpenSWBF2: the classes grow with a team the server raised, or they couldn't fill it
         iMaxUnits = NetWire::ServerClassMax(iMaxUnits, siMapUnits[iTeam], siServerUnits[iTeam]);

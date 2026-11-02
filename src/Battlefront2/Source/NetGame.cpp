@@ -6029,7 +6029,8 @@ void SpawnDisplay::UpdateSideSelectText(int iScreen)
             }
             else
             {
-                PblUnicode::usnprintf(ausText, 127, pusName);
+                // OpenSWBF2: copied, not a format: a mod's team name (CustomEraTeam) can hold a %
+                PblUnicode::ustrlcpy(ausText, pusName, sizeof(ausText) / sizeof(ausText[0]));
             }
             pLabel->SetText(ausText, true);
         }

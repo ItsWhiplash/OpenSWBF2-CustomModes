@@ -201,7 +201,9 @@ void ParseCommandLine(char const* pcAppName, char const* pcCmdLine)
         ++i;
     }
 
-    while (szCmdLine[i] != '\0')
+    // OpenSWBF2: 255 arguments at most; a long playlist (one word per mission and ticket count)
+    // ran past apcArgv on the stack
+    while (szCmdLine[i] != '\0' && iArgc < (int)(sizeof(apcArgv) / sizeof(apcArgv[0])) - 1)
     {
         if (szCmdLine[i] == '"')
         {

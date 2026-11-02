@@ -537,45 +537,43 @@ TEST_CASE("xinput back taps the player list and holds the map" * doctest::test_s
     CHECK(BackStep(back, false, false, 8100) == kBackPlayerList);
 }
 
-TEST_CASE("xinput modern hold to aim drives the zoom toggle" * doctest::test_suite("unit"))
+TEST_CASE("xinput modern hold to aim gives the zoom level" * doctest::test_suite("unit"))
 {
-    AimZoom s = {};
-    // nothing held, not aiming: no presses
-    CHECK(!AimZoomPress(s, false, false, false, true));
-    // LT down: one press to aim, then a gap frame
-    CHECK(AimZoomPress(s, true, false, false, true));
-    CHECK(!AimZoomPress(s, true, false, false, true));
-    // aiming and held: steady, no presses
-    CHECK(!AimZoomPress(s, true, false, true, true));
-    CHECK(!AimZoomPress(s, true, false, true, true));
-    // RS on a two-level scope: one press to step the level
-    CHECK(AimZoomPress(s, true, true, true, true));
-    CHECK(!AimZoomPress(s, true, false, true, true));
-    CHECK(!AimZoomPress(s, true, false, true, true));
-    // LT released while aiming: press out (twice if the first went min -> max)
-    CHECK(AimZoomPress(s, false, false, true, true));
-    CHECK(!AimZoomPress(s, false, false, true, true));
-    CHECK(AimZoomPress(s, false, false, true, true));
-    CHECK(!AimZoomPress(s, false, false, false, true));
-    CHECK(!AimZoomPress(s, false, false, false, true));
+    AimStep s = {};
+    // nothing held: out
+    CHECK(AimLevelStep(s, false, false, true) == kAimOff);
+    // LT held: the first level, for as long as it is held
+    CHECK(AimLevelStep(s, true, false, true) == kAimFirst);
+    CHECK(AimLevelStep(s, true, false, true) == kAimFirst);
+    // RS on a two-level scope: the second level, kept; RS again: back to the first
+    CHECK(AimLevelStep(s, true, true, true) == kAimSecond);
+    CHECK(AimLevelStep(s, true, false, true) == kAimSecond);
+    CHECK(AimLevelStep(s, true, true, true) == kAimFirst);
+    CHECK(AimLevelStep(s, true, true, true) == kAimSecond);
+    // LT released: out at once, from either level, and the next aim starts at the first
+    CHECK(AimLevelStep(s, false, false, true) == kAimOff);
+    CHECK(AimLevelStep(s, true, false, true) == kAimFirst);
 
-    // single-level scope: RS does nothing
-    AimZoom one = {};
-    CHECK(AimZoomPress(one, true, false, false, false));
-    CHECK(!AimZoomPress(one, true, false, false, false));
-    CHECK(!AimZoomPress(one, true, true, true, false));
-    CHECK(!AimZoomPress(one, true, false, true, false));
+    // single-level scope: RS changes nothing
+    AimStep one = {};
+    CHECK(AimLevelStep(one, true, false, false) == kAimFirst);
+    CHECK(AimLevelStep(one, true, true, false) == kAimFirst);
+    CHECK(AimLevelStep(one, true, false, false) == kAimFirst);
 
-    // an RS click during the gap frame is kept for the next one
-    AimZoom gap = {};
-    CHECK(AimZoomPress(gap, true, false, false, true));
-    CHECK(!AimZoomPress(gap, true, true, true, true));
-    CHECK(AimZoomPress(gap, true, false, true, true));
+    // RS on the frame LT goes down steps straight to the second level
+    AimStep both = {};
+    CHECK(AimLevelStep(both, true, true, true) == kAimSecond);
 
     // RS without LT is ignored
-    AimZoom free = {};
-    CHECK(!AimZoomPress(free, false, true, false, true));
-    CHECK(!AimZoomPress(free, false, false, false, true));
+    AimStep free = {};
+    CHECK(AimLevelStep(free, false, true, true) == kAimOff);
+    CHECK(AimLevelStep(free, true, false, true) == kAimFirst);
+
+    // swapping to a weapon without the second level while at it drops back to the first
+    AimStep swap = {};
+    CHECK(AimLevelStep(swap, true, true, true) == kAimSecond);
+    CHECK(AimLevelStep(swap, true, false, false) == kAimFirst);
+    CHECK(AimLevelStep(swap, true, false, true) == kAimFirst);
 }
 
 TEST_CASE("xinput menu navigation" * doctest::test_suite("unit"))

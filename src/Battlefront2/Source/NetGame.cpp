@@ -6816,7 +6816,8 @@ bool IsSame(ProcessedInputs* first, ProcessedInputs* second)
     {
         return false;
     }
-    if (first->mPadLookLevel != second->mPadLookLevel || first->mPadBoost != second->mPadBoost)
+    if (first->mPadLookLevel != second->mPadLookLevel || first->mPadBoost != second->mPadBoost ||
+        first->mPadAim != second->mPadAim)
     {
         return false;
     }
@@ -8980,6 +8981,7 @@ void ReadPlayerMoves(NetPktGroup& group)
         move.bits.mMouseMode = NetComm::GetArch(player) == NET_ARCH_PC ? 1 : 0;
         move.mPadLookLevel = 0;
         move.mPadBoost = 0;
+        move.mPadAim = 0;
     }
 }
 
@@ -9117,6 +9119,9 @@ bool ReadMove(NetPktGroup& group, const ProcessedInputs& previous, ProcessedInpu
     }
     current.mPadLookLevel = (unsigned char)uPadLevel;
     current.mPadBoost = (unsigned char)uPadBoost;
+    unsigned int uPadAim = 0;
+    group.ReadBits(uPadAim, 2);
+    current.mPadAim = (unsigned char)uPadAim;
     return true;
 }
 
@@ -14550,6 +14555,8 @@ void WriteMove(NetPktGroup* pGroup, ProcessedInputs* pPrev, ProcessedInputs* pCu
     {
         pGroup->WriteBits(pCur->mPadBoost, XInputPad::kBoostBits);
     }
+    // (kNetVersion 4) and its aim level, so the host zooms as the player does
+    pGroup->WriteBits(pCur->mPadAim, 2);
 }
 
 // FUNCTION: SWBF2 0x005d0e10

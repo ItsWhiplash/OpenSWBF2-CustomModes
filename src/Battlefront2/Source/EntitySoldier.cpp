@@ -2962,6 +2962,18 @@ bool EntitySoldier::PostCollisionUpdate(float fDeltaTime)
     return true;
 }
 
+// OpenSWBF2: the zoom the soldier's player wants with a Modern pad (XInputPad::AimLevel), or
+// XInputPad::kAimNone when the zoom button works it. It comes with the player's moves
+// (ProcessedInputs::mPadAim), so a host zooms as the player's own game does.
+static int PadAimLevel(int iPlayerId)
+{
+    if (iPlayerId < 0 || NetGame::IsMouseMode(iPlayerId))
+    {
+        return XInputPad::kAimNone;
+    }
+    return NetGame::GetJoystick(iPlayerId)->mPadAim;
+}
+
 // FUNCTION: SWBF2 0x004e6e70
 void EntitySoldier::CheckForZoom(float fDeltaTime)
 {
@@ -2978,7 +2990,13 @@ void EntitySoldier::CheckForZoom(float fDeltaTime)
         return;
     }
 
-    if (mControlZoom.IsPressed())
+    const int iPadAim = PadAimLevel(mPlayerId);
+    if (iPadAim != XInputPad::kAimNone)
+    {
+        mTargetInfo.mIsAiming =
+            mWeapon[mActiveIndex]->SetZoomLevel(iPadAim - XInputPad::kAimOff, mTargetInfo.mIsAiming);
+    }
+    else if (mControlZoom.IsPressed())
     {
         mTargetInfo.mIsAiming = mWeapon[mActiveIndex]->CycleZoom(mTargetInfo.mIsAiming);
     }

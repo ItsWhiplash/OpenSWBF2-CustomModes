@@ -116,6 +116,7 @@ public:
 
     void UpdateZoom(float fDeltaTime, float fZoomInput);
     bool CycleZoom(bool bCycle);
+    bool SetZoomLevel(int iLevel, bool bAiming);
     bool ZoomFirstPerson() const;
     int GetSoldierAnimationWeapon() const;
     float GetSoundRadius() const;

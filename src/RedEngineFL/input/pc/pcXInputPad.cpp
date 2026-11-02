@@ -17,7 +17,6 @@ int gPadLayout = kLayoutModern;
 bool gPadAimActive;
 bool gPadAimHeld;
 bool gPadSecondZoom;
-bool gPadLocalAiming;
 bool gPadLocalTwoLevel;
 bool gPadScopeStepsZoom;
 
@@ -615,35 +614,18 @@ int BackStep(HoldTap& rState, bool bDown, bool bMapOpen, unsigned int uiNowMs)
     }
 }
 
-bool AimZoomPress(AimZoom& rState, bool bAimHeld, bool bSecondPressed, bool bAiming, bool bTwoLevel)
+int AimLevelStep(AimStep& rState, bool bAimHeld, bool bSecondPressed, bool bTwoLevel)
 {
-    if (!bAimHeld)
+    if (!bAimHeld || !bTwoLevel)
     {
-        rState.bSecondPending = false;
+        rState.bSecond = false;
+        return bAimHeld ? kAimFirst : kAimOff;
     }
-    else if (bSecondPressed)
+    if (bSecondPressed)
     {
-        rState.bSecondPending = true;
+        rState.bSecond = !rState.bSecond;
     }
-    // presses must be edges: leave a frame up between them
-    if (rState.bPressedLast)
-    {
-        rState.bPressedLast = false;
-        return false;
-    }
-
-    bool bPress = false;
-    if (bAimHeld != bAiming)
-    {
-        bPress = true;
-    }
-    else if (bAiming && rState.bSecondPending)
-    {
-        rState.bSecondPending = false;
-        bPress = bTwoLevel;
-    }
-    rState.bPressedLast = bPress;
-    return bPress;
+    return rState.bSecond ? kAimSecond : kAimFirst;
 }
 
 bool RsLockTarget(RsLock& rState, bool bRSDown, bool bScopeStepsZoom)

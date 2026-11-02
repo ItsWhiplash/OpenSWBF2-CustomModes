@@ -758,7 +758,9 @@ void NetNdObjMap::Clear()
 {
     while (count)
     {
-        delete array[--count];
+        --count;
+        delete array[count];
+        array[count] = 0; // OpenSWBF2: or a later, smaller map's index found it freed
     }
     objMap.Clear();
     objMapNumEntries = 0;
@@ -7177,7 +7179,7 @@ Trackable* ReadTrackable(NetPktGroup& group)
     {
         unsigned int index;
         group.ReadBits(index, 8);
-        NetNdObj* ndObj = clientNdObjMap.array[index];
+        NetNdObj* ndObj = index < clientNdObjMap.count ? clientNdObjMap.array[index] : 0;
         if (ndObj)
         {
             Entity* entity = ndObj->obj->GetEntity();
@@ -7956,6 +7958,10 @@ void ReadBootRequest(NetPktGroup& group, int player)
     unsigned int guestSlot = 0;
     group.ReadBits(guestSlot, BOOT_JOYSTICK_BITS);
     int guest = NetGame::GetGuestIndex(player, guestSlot);
+    if (guest < 0)
+    {
+        return; // OpenSWBF2: 1 << -1 voted for slot 63
+    }
     if (selectsHost)
     {
         unsigned int host = 0;
@@ -8529,6 +8535,11 @@ void ReadSuicideRequest(NetPktGroup& group, unsigned int player)
         {
             continue;
         }
+        if (guest < 0)
+        {
+            group.SetBad(); // OpenSWBF2: no guest in the slot
+            return;
+        }
         unsigned int status = 0;
         group.ReadBits(status, 8);
         const bool changed = status != suicideChangeCounts[guest];
@@ -8644,7 +8655,7 @@ void ReadLockedTargets(NetPktGroup& group, int player)
         {
             unsigned int index = 0;
             group.ReadBits(index, 8);
-            NetNdObj* entry = clientNdObjMap.array[index];
+            NetNdObj* entry = index < clientNdObjMap.count ? clientNdObjMap.array[index] : 0;
             if (entry)
             {
                 target = reinterpret_cast<GameObject**>(entry)[1];
@@ -8656,7 +8667,8 @@ void ReadLockedTargets(NetPktGroup& group, int player)
             group.ReadBits(index, NetWire::kNetObjBits);
             if (index < NetWire::kNetObjNone)
             {
-                NetObjState* state = netPlayers[player].lastObjState->stateMap[index];
+                NetObjStateMap* pMap = netPlayers[player].lastObjState; // OpenSWBF2: none yet for a joiner
+                NetObjState* state = pMap ? pMap->stateMap[index] : 0;
                 if (state)
                 {
                     target = state->handle;
@@ -8971,7 +8983,7 @@ void ReadPlayerMoves(NetPktGroup& group)
     {
         unsigned int player = 0;
         group.ReadBits(player, 6);
-        if (player == (unsigned int)curDst)
+        if (player == (unsigned int)curDst || group.IsBad())
         {
             break;
         }
@@ -10385,6 +10397,18 @@ void ReadSpawnSelect(NetPktGroup& group, int player)
     for (int i = 0; i < 2; ++i)
     {
         int id = i == 0 ? player : NetGame::GetMyGuest(player, i - 1);
+        if (id < 0)
+        {
+            // OpenSWBF2: no guest: its game sends nothing for the slot, and netPlayers[-1] is out
+            bool hasGuestSpawn;
+            group.Read(hasGuestSpawn);
+            if (hasGuestSpawn)
+            {
+                group.SetBad();
+                return;
+            }
+            continue;
+        }
         NetPlayer& np = netPlayers[id];
         bool hasSpawn;
         group.Read(hasSpawn);
@@ -11076,7 +11100,8 @@ void ReadObjects(NetPktGroup& group)
             {
                 unsigned int index;
                 group.ReadBits(index, NetWire::kNetObjBits);
-                if (index >= NetWire::kNetObjNone)
+                // OpenSWBF2: a bad group reads zeros, and 0 is a slot: the loop never ended
+                if (index >= NetWire::kNetObjNone || group.IsBad())
                 {
                     break;
                 }
@@ -11348,6 +11373,12 @@ void ReadUpdate(NetPktGroup& group)
     {
         ReadObjects(group);
         CheckReadAlign(group);
+    }
+    if (group.IsBad())
+    {
+        // OpenSWBF2: an update this game can't read (ReadCreate) is dropped whole; the host's
+        // next ones correct it. Read on, its zeros kept ReadPlayerMoves looping for good.
+        return;
     }
     ReadSpectatorInfo(group, curDst);
     AtleastOnce::ReadAll(group);
@@ -11775,6 +11806,12 @@ void ReceivePrimary()
                     break;
                 }
                 group.ReadBits((unsigned int&)curDst, 5);
+                if (curDst != player && curDst != NetGame::GetMyGuest(player, 0))
+                {
+                    // OpenSWBF2: a game sends its own player's and guest's moves, never others'
+                    group.SetBad();
+                    break;
+                }
             }
         }
         group.EndRead();

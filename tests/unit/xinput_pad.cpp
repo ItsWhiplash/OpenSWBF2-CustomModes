@@ -573,6 +573,21 @@ TEST_CASE("xinput back taps the player list and holds the map" * doctest::test_s
     CHECK(BackStep(back, false, false, 8100) == kBackPlayerList);
 }
 
+TEST_CASE("xinput pitch is inverted only in flyers and only when asked" * doctest::test_suite("unit"))
+{
+    // the default: stick up looks up in every mode, flyers included
+    for (int iMode = 0; iMode < kModeCount; ++iMode)
+    {
+        CHECK_FALSE(PadInvertsPitch(iMode, false));
+    }
+    // Invert flying: flyers only
+    CHECK(PadInvertsPitch(kModeFlyer, true));
+    CHECK_FALSE(PadInvertsPitch(0, true));
+    CHECK_FALSE(PadInvertsPitch(1, true));
+    CHECK_FALSE(PadInvertsPitch(3, true));
+    CHECK_FALSE(PadInvertsPitch(4, true));
+}
+
 TEST_CASE("xinput modern hold to aim gives the zoom level" * doctest::test_suite("unit"))
 {
     AimStep s = {};

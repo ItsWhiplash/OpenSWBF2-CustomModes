@@ -1261,6 +1261,9 @@ function ifs_opt_pcpad_fnApplySettings(this)
 		local iLevel, iStep, iMin, iMax = ScriptCB_GetPadLookSpeed()
 		form.elements["padlook"].selValue = iLevel / iMax
 	end
+	if ( ScriptCB_GetPadInvertFlight ) then
+		form.elements["padinvert"].selValue = ScriptCB_GetPadInvertFlight() + 1
+	end
 	Form_SetValues(form)
 	ifs_opt_pcpad_fnFillBindings(this)
 end
@@ -1302,6 +1305,7 @@ ifs_opt_pcpad = NewIFShellScreen {
 		-- OpenSWBF2: in the Game page's column, where Form_ShowHideElements
 		-- puts its radio buttons and slider (x 0 of their containers)
 		IFObj_fnSetPos(form.radiobuttons.padlayout, 0, form.buttons.padlayout.y)
+		IFObj_fnSetPos(form.radiobuttons.padinvert, 0, form.buttons.padinvert.y)
 		IFObj_fnSetPos(form.sliders.padlook, 0, form.buttons.padlook.y)
 		ifs_opt_pcpad_fnApplySettings(this)
 	end,
@@ -1339,6 +1343,9 @@ ifs_opt_pcpad = NewIFShellScreen {
 			if ( ScriptCB_SetPadLayout ) then
 				ScriptCB_SetPadLayout(0)
 			end
+			if ( ScriptCB_SetPadInvertFlight ) then
+				ScriptCB_SetPadInvertFlight(0)
+			end
 			if ( ScriptCB_SetPadLookSpeed ) then
 				local iLevel, iStep, iMin, iMax, iDefault = ScriptCB_GetPadLookSpeed()
 				ScriptCB_SetPadLookSpeed(iDefault)
@@ -1369,6 +1376,10 @@ ifs_opt_pcpad = NewIFShellScreen {
 		if ( buttongroup.tag == "padlayout" and ScriptCB_SetPadLayout ) then
 			-- applies at once and saves to display.ini (1 Modern, 2 Legacy)
 			ScriptCB_SetPadLayout(btnNum - 1)
+		end
+		if ( buttongroup.tag == "padinvert" and ScriptCB_SetPadInvertFlight ) then
+			-- applies at once and saves to display.ini (1 No, 2 Yes)
+			ScriptCB_SetPadInvertFlight(btnNum - 1)
 		end
 		Form_SetValues(form)
 		ifs_opt_pcpad_fnFillBindings(this)
@@ -1433,6 +1444,7 @@ ifs_opt_pcpad_layout = {
 	elements = {
 		{ tag = "padlayout", title = "Controller layout", fnChanged = ifs_opt_pcpad.OnRadioChanged, selValue = 1, control = "radio", values = {"Modern", "Legacy"}, },
 		{ tag = "padlook", title = "Controller sensitivity", fnChanged = ifs_opt_pcpad.OnElementChanged, selValue = 0.4, control = "slider", minValue = 0.1, maxValue = 1.0, sliderMultiplier = 10 },
+		{ tag = "padinvert", title = "Invert flying", fnChanged = ifs_opt_pcpad.OnRadioChanged, selValue = 1, control = "radio", values = {"common.no", "common.yes"}, },
 		{ tag = "padmode", title = "Show buttons for", fnChanged = ifs_opt_pcpad.OnElementChanged, selValue = 1, control = "dropdown", values = {"Soldier", "Vehicle", "Flyer", "Jedi", "Turret"}, },
 	}
 }
@@ -1455,13 +1467,15 @@ function ifs_opt_pcpad_fnBuildScreen(this)
 	this.formcontainer.form.dropdowns.x = 0 -- starts in the same column
 	Form_PlaceSliderValues(this.formcontainer.form, ifs_opt_pcpad_layout)
 
-	-- the button list: action on the left, button on the right
-	local iRowH = 15
+	-- the button list: action on the left, button on the right, below the
+	-- form's four rows (35 each); 14 high so the soldier's 22 rows clear the
+	-- bottom buttons on the shell's 600-high screen
+	local iRowH = 14
 	this.bindings = NewIFContainer {
 		ScreenRelativeX = 0.5,
 		ScreenRelativeY = 0.36,
 		x = 0,
-		y = 0,
+		y = 35,
 	}
 	local i
 	for i = 1, ifs_opt_pcpad_kRows do

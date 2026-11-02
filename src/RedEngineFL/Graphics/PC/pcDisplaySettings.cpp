@@ -53,6 +53,8 @@ static const char* KeyName(unsigned int uiKey)
         return "Renderer";
     case kNoSonyPad:
         return "NoSonyPad";
+    case kPadInvertFlight:
+        return "PadInvertFlight";
     }
     return "?";
 }
@@ -232,6 +234,13 @@ bool SetFromText(DisplaySettings& kSettings, unsigned int uiKey, const char* pcV
             kSettings.bNoSonyPad = bBool;
         }
         break;
+    case kPadInvertFlight:
+        bValid = ParseBool(pcValue, bBool);
+        if (bValid)
+        {
+            kSettings.bPadInvertFlight = bBool;
+        }
+        break;
     case kPadLayout:
         if (pcValue != 0 && (_stricmp(pcValue, "modern") == 0 || strcmp(pcValue, "0") == 0))
         {
@@ -384,6 +393,10 @@ void Merge(DisplaySettings& dst, const DisplaySettings& cli)
     {
         dst.uiPadLookSpeed = cli.uiPadLookSpeed;
     }
+    if (cli.uiSet & kPadInvertFlight)
+    {
+        dst.bPadInvertFlight = cli.bPadInvertFlight;
+    }
     if (cli.uiSet & kHudScale)
     {
         dst.uiHudScale = cli.uiHudScale;
@@ -418,7 +431,7 @@ void LoadIni(DisplaySettings& kSettings, const char* pcPath)
     static const unsigned int auiKeys[] = {kAdapter, kAdapterName, kBorderless, kRefresh,
                                            kVsync,   kFps,         kNoWaitQuery, kNoDpi,
                                            kSoftwareCursor, kPadLayout, kPadLookSpeed, kHudScale, kFov, kCrispFonts,
-                                           kRenderer, kNoSonyPad};
+                                           kRenderer, kNoSonyPad, kPadInvertFlight};
     for (unsigned int i = 0; i < sizeof(auiKeys) / sizeof(auiKeys[0]); ++i)
     {
         char acValue[256];
@@ -503,6 +516,10 @@ bool SaveIni(const DisplaySettings& kSettings, const char* pcPath, bool bGoodFra
     {
         sprintf(acValue, "%u", kSettings.uiPadLookSpeed);
         bOk = PutKey("PadLookSpeed", acValue, acTemp) && bOk;
+    }
+    if (ShouldWrite(kSettings, kPadInvertFlight))
+    {
+        bOk = PutKey("PadInvertFlight", kSettings.bPadInvertFlight ? "1" : "0", acTemp) && bOk;
     }
     if (ShouldWrite(kSettings, kHudScale))
     {
@@ -647,6 +664,27 @@ static bool SaveUIntKey(unsigned int uiKey, unsigned int uiValue, unsigned int D
 bool SavePadLookSpeed(unsigned int uiLevel)
 {
     return SaveUIntKey(kPadLookSpeed, uiLevel, &DisplaySettings::uiPadLookSpeed);
+}
+
+// "Invert flying" from Options -> Controller, written on its own like the layout.
+bool SavePadInvertFlight(bool bInvert)
+{
+    char acPath[MAX_PATH];
+    if (!DisplayIniPath(acPath, sizeof(acPath)))
+    {
+        return false;
+    }
+    DisplaySettings kSave;
+    SetDefaults(kSave);
+    if (!SetFromText(kSave, kPadInvertFlight, bInvert ? "1" : "0", "lua") || !SaveIni(kSave, acPath, true))
+    {
+        return false;
+    }
+    gIniDisplay.bPadInvertFlight = kSave.bPadInvertFlight;
+    gIniDisplay.uiSet |= kPadInvertFlight;
+    gDisplay.bPadInvertFlight = kSave.bPadInvertFlight;
+    gDisplay.uiSet |= kPadInvertFlight;
+    return true;
 }
 
 // The HUD scale and field of view from Options -> Video.

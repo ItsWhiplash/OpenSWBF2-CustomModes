@@ -537,6 +537,7 @@ int __stdcall GameWinMain(HINSTANCE hInstance, HINSTANCE, char* lpCmdLine, int)
     XInputPad::gPadLayout =
         DisplayCfg::gDisplay.uiPadLayout ? XInputPad::kLayoutLegacy : XInputPad::kLayoutModern;
     XInputPad::gPadLookLevel = (int)DisplayCfg::gDisplay.uiPadLookSpeed;
+    XInputPad::gPadInvertFlight = DisplayCfg::gDisplay.bPadInvertFlight;
     SonyPad::gDisabled = DisplayCfg::gDisplay.bNoSonyPad;
     PcWindow::InitDpi(DisplayCfg::gDisplay.bNoDpi);
 

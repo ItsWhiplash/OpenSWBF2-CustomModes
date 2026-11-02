@@ -671,6 +671,28 @@ static int ScriptCB_SetPadLookSpeed(lua_State*)
     return 0;
 }
 
+// "Invert flying" for Options -> Controller: 1 when a pad's pitch is inverted in flyers.
+static int ScriptCB_GetPadInvertFlight(lua_State*)
+{
+    lua_pushnumber(LuaHelper::mState, XInputPad::gPadInvertFlight ? 1.0f : 0.0f);
+    return 1;
+}
+
+// Applies at once and saves to display.ini.
+static int ScriptCB_SetPadInvertFlight(lua_State*)
+{
+    const bool bInvert = (int)luaL_checknumber(LuaHelper::mState, 1) != 0;
+    if (bInvert != XInputPad::gPadInvertFlight)
+    {
+        XInputPad::gPadInvertFlight = bInvert;
+        if (!DisplayCfg::SavePadInvertFlight(bInvert))
+        {
+            LOG(LogCore, Warning, "OPENSWBF2 PAD invert flying %d not saved", bInvert ? 1 : 0);
+        }
+    }
+    return 0;
+}
+
 // Field of view for Options -> Video, in degrees across 16:9: value, min,
 // max, default.
 static int ScriptCB_GetFov(lua_State*)
@@ -793,6 +815,8 @@ static const CallbackEntryT sPCCallbacks[] =
     { "ScriptCB_SetPadLayout", ScriptCB_SetPadLayout },
     { "ScriptCB_GetPadLookSpeed", ScriptCB_GetPadLookSpeed },
     { "ScriptCB_SetPadLookSpeed", ScriptCB_SetPadLookSpeed },
+    { "ScriptCB_GetPadInvertFlight", ScriptCB_GetPadInvertFlight },
+    { "ScriptCB_SetPadInvertFlight", ScriptCB_SetPadInvertFlight },
     { "ScriptCB_GetFov", ScriptCB_GetFov },
     { "ScriptCB_SetFov", ScriptCB_SetFov },
     { "ScriptCB_GetRenderer", ScriptCB_GetRenderer },

@@ -184,6 +184,13 @@ enum PadLayout
 };
 extern int gPadLayout;
 
+// Pitch on a pad: up looks up, in flyers too, unless "Invert flying" is on (Options ->
+// Controller, gPadInvertFlight, display.ini PadInvertFlight). The profile's per-mode Invert is
+// the keyboard and mouse's: retail turns it on for flyers, so pads flew inverted.
+const int kModeFlyer = 2;
+extern bool gPadInvertFlight;
+bool PadInvertsPitch(int iMode, bool bInvertFlight);
+
 // Raw slot for an action (ePROCESSEDINPUT value) in an input mode (0 soldier,
 // 1 vehicle, 2 flyer, 3 jedi, 4 turret) for a layout, or -1. Legacy is the
 // original console-style layout; Modern aims on LT, throws on RB, swaps on Y,

@@ -1097,7 +1097,10 @@ void RawControllerInputs::ProcessRawAction(int iAction, unsigned char ucPort, in
         fLastValue = mLastRawInputFloat[ucPort][iRaw];
     }
 
-    if (mFlip[mMode] && iAction == ePROCESSEDINPUT_PITCH_AXIS)
+    // OpenSWBF2: an XInput pad inverts flyers' pitch only when its own setting says so
+    // (XInputPad::PadInvertsPitch); mFlip, retail's on for flyers, is the keyboard and mouse's.
+    const bool bFlip = bXInput ? XInputPad::PadInvertsPitch(mMode, XInputPad::gPadInvertFlight) : mFlip[mMode] != 0;
+    if (bFlip && iAction == ePROCESSEDINPUT_PITCH_AXIS)
     {
         fValue *= -1.0f;
         fLastValue *= -1.0f;

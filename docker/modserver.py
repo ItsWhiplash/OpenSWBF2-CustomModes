@@ -985,9 +985,13 @@ def apply_pending(root):
 
 
 # --- Server settings: kept on the server, set from the launcher's admin screen -----------------
-MISSION = re.compile(r"^[A-Za-z0-9_]{1,31}$")
-JOIN_PASSWORD = re.compile(r'^[^\s"]{0,15}$')
+# \Z, not $: $ also matches before a trailing newline, and a saved "ab\n" broke the next start.
+# No comma or backslash: the game's command line splits at commas, and \" escapes a quote.
+MISSION = re.compile(r"^[A-Za-z0-9_]{1,31}\Z")
+JOIN_PASSWORD = re.compile(r'^[^\s",\\]{0,15}\Z')
 MAX_MAPS_LINE = 1200
+# The game takes 255 command-line words in all; the playlist is one word per mission and ticket count
+MAX_MAP_WORDS = 200
 TICK_RATES = (30, 60, 120)
 # The game options as the launcher's ServerProfile.OptionCommands sends them: the values the game
 # takes, and a new server's. ServerSettings.cfg lists them in this order.
@@ -1087,12 +1091,12 @@ def clean_settings(body):
     settings = {}
     if "name" in body:
         name = body["name"].strip() if isinstance(body["name"], str) else ""
-        if not 0 < len(name) <= 31 or '"' in name or any(ord(c) < 32 or ord(c) == 127 for c in name):
-            raise Refused(400, "the server name is 1 to 31 characters, without quotes")
+        if not 0 < len(name) <= 31 or any(c in name for c in '",\\') or any(ord(c) < 32 or ord(c) == 127 for c in name):
+            raise Refused(400, "the server name is 1 to 31 characters, without quotes, commas or backslashes")
         settings["name"] = name
     if "joinPassword" in body:
         if not isinstance(body["joinPassword"], str) or not JOIN_PASSWORD.match(body["joinPassword"]):
-            raise Refused(400, "the join password is at most 15 characters, without spaces or quotes")
+            raise Refused(400, "the join password is at most 15 characters, without spaces, quotes, commas or backslashes")
         settings["joinPassword"] = body["joinPassword"]
     if "lobby" in body:
         if not isinstance(body["lobby"], bool):
@@ -1110,7 +1114,7 @@ def clean_settings(body):
         maps = clean_maps(body["maps"])
         if maps is None:
             raise Refused(400, "the playlist is a list of missions such as geo1c_con, with optional tickets")
-        if len(" ".join(map_words(maps))) > MAX_MAPS_LINE:
+        if len(" ".join(map_words(maps))) > MAX_MAPS_LINE or len(map_words(maps)) > MAX_MAP_WORDS:
             raise Refused(400, f"the playlist is too long for the game's command line ({MAX_MAPS_LINE} characters at most)")
         settings["maps"] = maps
     if "options" in body:

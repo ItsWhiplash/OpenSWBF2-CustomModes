@@ -20,6 +20,7 @@ const unsigned int kFov = 8192; // OpenSWBF2: field of view, degrees at 16:9 55.
 const unsigned int kCrispFonts = 16384; // OpenSWBF2: redraw the font atlases sharp above 1080p (default on)
 const unsigned int kRenderer = 32768; // OpenSWBF2: renderer, vulkan (default) or d3d9, read at startup
 const unsigned int kNoSonyPad = 65536; // OpenSWBF2: PlayStation pads stay on DirectInput (Steam Input, DS4Windows)
+const unsigned int kPadInvertFlight = 131072; // OpenSWBF2: a pad's pitch inverted in flyers (default off)
 
 const unsigned int kAdapterMax = 15;
 const unsigned int kRefreshMax = 1000;
@@ -67,6 +68,7 @@ struct DisplaySettings
     bool bCrispFonts;
     unsigned int uiRenderer;
     bool bNoSonyPad;
+    bool bPadInvertFlight;
     char acDisplayIni[260];
     unsigned int uiSet;
     unsigned int uiCliMask;
@@ -101,6 +103,7 @@ bool DisplayIniPath(char* pcPath, unsigned int uiSize);
 bool SaveAdapter(unsigned int uiIndex, const char* pcName);
 bool SavePadLayout(unsigned int uiLayout);
 bool SavePadLookSpeed(unsigned int uiLevel);
+bool SavePadInvertFlight(bool bInvert);
 bool SaveHudScale(unsigned int uiPercent);
 bool SaveFov(unsigned int uiDegrees);
 bool SaveRenderer(unsigned int uiRenderer);

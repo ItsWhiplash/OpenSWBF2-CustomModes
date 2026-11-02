@@ -647,6 +647,47 @@ TEST_CASE("display settings pad look speed" * doctest::test_suite("unit"))
     SetDefaults(gDisplay);
 }
 
+TEST_CASE("display settings pad invert flying" * doctest::test_suite("unit"))
+{
+    // off (stick up flies up) unless the ini says otherwise
+    DisplaySettings kSettings;
+    SetDefaults(kSettings);
+    CHECK_FALSE(kSettings.bPadInvertFlight);
+    CHECK((kSettings.uiSet & kPadInvertFlight) == 0);
+    CHECK(SetFromText(kSettings, kPadInvertFlight, "1", "test"));
+    CHECK(kSettings.bPadInvertFlight);
+    CHECK(SetFromText(kSettings, kPadInvertFlight, "off", "test"));
+    CHECK_FALSE(kSettings.bPadInvertFlight);
+    {
+        LogCapture capture;
+        CHECK_FALSE(SetFromText(kSettings, kPadInvertFlight, "upside", "test"));
+    }
+    CHECK_FALSE(kSettings.bPadInvertFlight);
+
+    // saved on its own, next to the other keys
+    Cleanup();
+    WriteText("[Display]\r\nPadLookSpeed=7\r\n");
+    SetDefaults(gCliDisplay);
+    SetFromText(gCliDisplay, kDisplayIni, IniPath(), "command line");
+    Init();
+    CHECK_FALSE(gDisplay.bPadInvertFlight);
+    CHECK(SavePadInvertFlight(true));
+    CHECK(gDisplay.bPadInvertFlight);
+    DisplaySettings kLoaded;
+    SetDefaults(kLoaded);
+    LoadIni(kLoaded, IniPath());
+    char acText[512];
+    ReadText(acText, sizeof(acText));
+    Cleanup();
+    CHECK(kLoaded.bPadInvertFlight);
+    CHECK(kLoaded.uiPadLookSpeed == 7);
+    const bool bWritten = strstr(acText, "PadInvertFlight=1") != 0;
+    CHECK(bWritten);
+    SetDefaults(gCliDisplay);
+    SetDefaults(gIniDisplay);
+    SetDefaults(gDisplay);
+}
+
 TEST_CASE("display settings hud scale and field of view" * doctest::test_suite("unit"))
 {
     // 100% and 61 degrees (today's HUD and camera) unless the ini says otherwise

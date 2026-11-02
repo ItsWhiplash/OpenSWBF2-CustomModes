@@ -14,6 +14,7 @@ bool gMouseResync;
 bool gStickCursor;
 bool gBumperDown;
 int gPadLayout = kLayoutModern;
+bool gPadInvertFlight;
 bool gPadAimActive;
 bool gPadAimHeld;
 bool gPadSecondZoom;
@@ -261,6 +262,11 @@ bool ParseVidPid(const char* pcPath, unsigned short& usVid, unsigned short& usPi
         return false;
     }
     return ParseHex4(pcVid, usVid) && ParseHex4(pcPid, usPid);
+}
+
+bool PadInvertsPitch(int iMode, bool bInvertFlight)
+{
+    return iMode == kModeFlyer && bInvertFlight;
 }
 
 int DefaultSlot(int iLayout, int iMode, int iAction)

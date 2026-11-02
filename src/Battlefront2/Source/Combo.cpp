@@ -1,4 +1,7 @@
 #include "Combo.h"
+#include "GameMemory.h"
+#include "RedEngineFL/Memory/RedMemory.h"
+#include <new>
 
 #include <math.h>
 #include <string.h>
@@ -256,26 +259,70 @@ void* Combo::_AllocDamageSample()
     return pool.Allocate(0x1c);
 }
 
+// OpenSWBF2: room for entry uiCount of a combo list (a combo's states, a state's transitions,
+// attacks and animated-move conditions, a transition's conditions, an attack's damage samples).
+// The game reads each list as an array from its first entry, but retail took the entries from a
+// pool one at a time and kept only the first: the list was whole only while nothing else took a
+// block in between. A state or transition a combo names twice, or conditions taken for another
+// list meanwhile, scattered it, and the game read whatever followed (on x64 pointers among it) as
+// the list's: heroes' moves misfired and a server crashed. A full pool also dropped entries (BF1's
+// heroes overflow the transitions). Each list now lives in an array of its own on the runtime heap
+// (rebuilt for every map, like the pools), 4 entries and doubling; a list grows only through here,
+// so its count tells its capacity.
+static void* ComboListSlot(void*& rList, unsigned int uiCount, unsigned int uiSize)
+{
+    unsigned int uiCapacity = 4;
+    while (uiCapacity < uiCount)
+    {
+        uiCapacity *= 2;
+    }
+    if (uiCount == 0 || uiCount == uiCapacity)
+    {
+        const unsigned int uiNew = uiCount == 0 ? 4 : uiCapacity * 2;
+        void* pList = RedAllocFromHeap(GameMemory::RunTimeHeap, uiNew * uiSize, 0);
+        if (!pList)
+        {
+            return 0;
+        }
+        memset(pList, 0, uiNew * uiSize);
+        if (uiCount)
+        {
+            memcpy(pList, rList, uiCount * uiSize);
+        }
+        rList = pList;
+    }
+    return (char*)rList + uiCount * uiSize;
+}
+
+template <class T>
+static T* ComboListAdd(T*& rList, unsigned int uiCount)
+{
+    void* pList = rList;
+    void* pSlot = ComboListSlot(pList, uiCount, sizeof(T));
+    rList = (T*)pList;
+    return pSlot ? ::new (pSlot) T : 0;
+}
+
 // FUNCTION: SWBF2 0x00473280
 void Combo::Attack::AddDamageSample(float fTime, const PblVector3& vBegin, const PblVector3& vEnd)
 {
     Combo::Attack* pAttack = (Combo::Attack*)this;
-    char* pSample = static_cast<char*>(Combo::_AllocDamageSample());
+    if (pAttack->m_uiNumDamageSamples >= 255)
+    {
+        return;
+    }
+    // 0x1c bytes each: the time, then the blade's two ends (WeaponMelee's MeleeDamageSample)
+    void* pList = pAttack->m_aDamageSample;
+    char* pSample = static_cast<char*>(ComboListSlot(pList, pAttack->m_uiNumDamageSamples, 0x1c));
     if (!pSample)
     {
         return;
     }
-    if (pAttack->m_uiNumDamageSamples == 0)
-    {
-        pAttack->m_aDamageSample = reinterpret_cast<Combo::DamageSample*>(pSample);
-    }
-    if (pAttack->m_uiNumDamageSamples < 255)
-    {
-        ++pAttack->m_uiNumDamageSamples;
-        *reinterpret_cast<float*>(pSample) = fTime;
-        memcpy(pSample + 4, &vBegin, sizeof(PblVector3));
-        memcpy(pSample + 16, &vEnd, sizeof(PblVector3));
-    }
+    pAttack->m_aDamageSample = reinterpret_cast<Combo::DamageSample*>(pList);
+    ++pAttack->m_uiNumDamageSamples;
+    *reinterpret_cast<float*>(pSample) = fTime;
+    memcpy(pSample + 4, &vBegin, sizeof(PblVector3));
+    memcpy(pSample + 16, &vEnd, sizeof(PblVector3));
 }
 
 static PblMatrix _IdentityMatrix(
@@ -1523,16 +1570,12 @@ Combo::Condition* Combo::Transition::AddCondition()
     {
         return 0;
     }
-    Condition* pCondition = _AllocCondition();
+    Condition* pCondition = ComboListAdd(m_aCondition, m_uiNumConditions);
     if (!pCondition)
     {
         return 0;
     }
     pCondition->_Init();
-    if (!m_uiNumConditions)
-    {
-        m_aCondition = pCondition;
-    }
     ++m_uiNumConditions;
     return pCondition;
 }
@@ -2488,16 +2531,12 @@ Combo::Transition* Combo::State::AddTransition(unsigned int uiTargetState)
     {
         return 0;
     }
-    Transition* pTransition = _AllocTransition();
+    Transition* pTransition = ComboListAdd(m_aTransition, m_uiNumTransitions);
     if (!pTransition)
     {
         return 0;
     }
     pTransition->_Init(uiTargetState);
-    if (!m_uiNumTransitions)
-    {
-        m_aTransition = pTransition;
-    }
     ++m_uiNumTransitions;
     return pTransition;
 }
@@ -2509,16 +2548,12 @@ Combo::Attack* Combo::State::AddAttack()
     {
         return 0;
     }
-    Attack* pAttack = _AllocAttack();
+    Attack* pAttack = ComboListAdd(m_aAttack, m_uiNumAttacks);
     if (!pAttack)
     {
         return 0;
     }
     pAttack->_Init();
-    if (!m_uiNumAttacks)
-    {
-        m_aAttack = pAttack;
-    }
     ++m_uiNumAttacks;
     return pAttack;
 }
@@ -2547,17 +2582,13 @@ Combo::Condition* Combo::State::AddAnimatedMoveCondition()
     {
         return 0;
     }
-    Condition* pCondition = _AllocCondition();
+    Condition* pCondition = ComboListAdd(m_aAnimatedMoveCondition, m_uiNumAnimatedMoveConditions);
     if (!pCondition)
     {
         return 0;
     }
     pCondition->_Init();
     pCondition->SetBreak(true);
-    if (!m_uiNumAnimatedMoveConditions)
-    {
-        m_aAnimatedMoveCondition = pCondition;
-    }
     ++m_uiNumAnimatedMoveConditions;
     return pCondition;
 }
@@ -2845,10 +2876,23 @@ Combo::State* Combo::AddState(unsigned int uiNameHash)
             return &m_aState[i];
         }
     }
-    State* pState = _AllocState();
+    State* pOld = m_aState;
+    State* pState = ComboListAdd(m_aState, m_uiNumStates);
     if (!pState)
     {
         return 0;
+    }
+    if (m_aState != pOld)
+    {
+        // the states moved to a bigger array (ComboListSlot)
+        if (m_pCatchState)
+        {
+            m_pCatchState = m_aState + (m_pCatchState - pOld);
+        }
+        if (m_pTakeKneeState)
+        {
+            m_pTakeKneeState = m_aState + (m_pTakeKneeState - pOld);
+        }
     }
     pState->_Init(uiNameHash);
     if (uiNameHash == 0x8718d358)
@@ -2858,10 +2902,6 @@ Combo::State* Combo::AddState(unsigned int uiNameHash)
     else if (uiNameHash == 0xd7e2ce48)
     {
         m_pTakeKneeState = pState;
-    }
-    if (!m_uiNumStates)
-    {
-        m_aState = pState;
     }
     ++m_uiNumStates;
     return pState;

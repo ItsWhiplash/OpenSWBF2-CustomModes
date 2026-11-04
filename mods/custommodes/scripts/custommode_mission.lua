@@ -37,7 +37,7 @@ function CustomModeMission(cfg)
 	local hooking = false
 	local injected = false
 	-- the engine registers these after this script's top level runs, so they're taken in ScriptInit
-	local RealReadDataFile, RealSetMemoryPoolSize
+	local RealReadDataFile, RealSetMemoryPoolSize, RealSetHeroClass
 
 	local function Inject()
 		if injected then return end
@@ -70,6 +70,14 @@ function CustomModeMission(cfg)
 		return RealSetMemoryPoolSize(unpack(arg))
 	end
 
+	-- notes each team's hero class (Horde's boss) in gCustomModeHeroes
+	local function SetHeroClassHook(...)
+		if type(arg[1]) == "number" and type(arg[2]) == "string" then
+			gCustomModeHeroes[arg[1]] = arg[2]
+		end
+		return RealSetHeroClass(unpack(arg))
+	end
+
 	function ours.ScriptPreInit()
 		-- ".\\mission.lvl" is the game's own mission.lvl: plain "mission.lvl" means this
 		-- addon's while one of its missions is loading
@@ -91,12 +99,15 @@ function CustomModeMission(cfg)
 	function ours.ScriptInit()
 		RealReadDataFile = RealReadDataFile or ReadDataFile
 		RealSetMemoryPoolSize = RealSetMemoryPoolSize or SetMemoryPoolSize
+		RealSetHeroClass = RealSetHeroClass or SetHeroClass
+		gCustomModeHeroes = {}
 		local pool, extra
 		for pool, extra in pairs(cfg.memoryPools or {}) do
 			RealSetMemoryPoolSize(pool, extra) -- in case the map never sets it
 		end
 		ReadDataFile = ReadDataFileHook
 		SetMemoryPoolSize = SetMemoryPoolSizeHook
+		if RealSetHeroClass then SetHeroClass = SetHeroClassHook end
 		hooking = true
 		baseFns.ScriptInit()
 		hooking = false
@@ -167,6 +178,45 @@ function PayloadMap(code, cfg)
 	cfg.memoryPools = cfg.memoryPools or { EntityHover = 1 }
 	cfg.objectiveScript = "ObjectivePayload"
 	cfg.objectiveClass = "ObjectivePayload"
+	CustomModeMission(cfg)
+end
+
+-- Horde's shop for an era: Galactic Conquest's enhancements, the team's hero, and two vehicles.
+-- Bonus items show the game's own name for them when someone steps on the pad.
+function HordeShop(era)
+	local function Bonus(bonus, tech, price)
+		return { id = bonus, kind = "bonus", bonus = bonus, price = price,
+			message = "ifs.freeform.purchase.tech." .. tech .. ".enhancement" }
+	end
+	local vehicles = HordeEraVehicles[era] or HordeEraVehicles.g
+	return {
+		Bonus("sensor_array", "surveillance", 75),
+		Bonus("energy_boost", "adrenaline", 100),
+		Bonus("bacta_tanks", "bacta_refinery", 150),
+		Bonus("combat_shielding", "advanced_armor", 150),
+		Bonus("advanced_blasters", "blaster_amplification", 250),
+		Bonus("leader", "leadership", 300),
+		{ id = "hero", kind = "hero", price = 250 },
+		{ id = "bike", kind = "vehicle", class = vehicles.bike, price = 80 },
+		{ id = "tank", kind = "vehicle", class = vehicles.tank, price = 200 },
+	}
+end
+
+HordeEraVehicles = {
+	g = { side = "SIDE\\imp.lvl", tank = "imp_hover_fightertank", bike = "imp_hover_speederbike" },
+	c = { side = "SIDE\\rep.lvl", tank = "rep_hover_fightertank", bike = "rep_hover_barcspeeder" },
+}
+
+-- Horde on a stock map: HordeMap("tat2g", { ... })
+function HordeMap(code, cfg)
+	local era = string.sub(code, -1)
+	local vehicles = HordeEraVehicles[era] or HordeEraVehicles.g
+	cfg.base = cfg.base or (code .. "_con")
+	cfg.shop = cfg.shop or HordeShop(era)
+	cfg.extraData = cfg.extraData or { { vehicles.side, vehicles.tank, vehicles.bike } }
+	cfg.memoryPools = cfg.memoryPools or { EntityHover = 4 }
+	cfg.objectiveScript = "ObjectiveHorde"
+	cfg.objectiveClass = "ObjectiveHorde"
 	CustomModeMission(cfg)
 end
 

@@ -6,6 +6,8 @@ New game modes for the stock maps, packed as one AddOn folder:
   map.
 - **[Rush](#rush)** (`_rush`): the attackers capture command posts stage by stage, on limited
   lives.
+- **[Horde](#horde)** (`_horde`): every player holds one post together against endless, growing
+  waves, and spends kill credits at shop pads between waves.
 
 Both modes work in single player with bots, and on a server where anyone who joins can play.
 
@@ -17,7 +19,8 @@ works with the build you already have, on Windows or the Docker server.
 - `CUSTOMMODES/addme.script` adds the modes to each stock map's mode list, in both eras where the
   map has them.
 - `CUSTOMMODES/data/_lvl_pc/mission.lvl` holds:
-  - the modes: `scripts/objectivepayload.lua` and `scripts/objectiverush.lua`;
+  - the modes: `scripts/objectivepayload.lua`, `scripts/objectiverush.lua` and
+    `scripts/objectivehorde.lua`;
   - the shared loader: `scripts/custommode_mission.lua`;
   - one small mission per map and mode: `maps/<mode>/<map><era>.lua`, for example
     `maps/rush/tat2g.lua` for `tat2g_rush`.
@@ -190,6 +193,80 @@ RushMap("tat2g", {
 | `aiObjectiveWeight` / `aiFightWeight` | `100` / `25` | How strongly bots go for the open posts, and how strongly they roam and fight instead. |
 | `attackers` | stock `ATT` | `"def"` swaps which side attacks. |
 
+## Horde
+
+Every human player is on one team, with their bot allies, holding one command post (the last
+stand) against endless waves of the other side's army.
+
+- **Waves.** Wave 1 has 10 enemies, and each wave after has 4 more. The enemy counter on the HUD
+  shows how many are left, and the other team's score shows the wave number. How many are alive
+  at once follows the bot count in your Instant Action or server settings.
+- **Tougher enemies.** Enemy health rises 10% a wave, up to 4×.
+- **Bosses.** Every 5th wave, the enemy side's hero (whoever the map loads) joins as a boss with
+  3× health on top of the wave's. It's worth 100 credits.
+- **Deaths.** Anyone who dies in a wave is out until the break. Between waves there's a 20 s
+  break (30 s before the first wave), and everyone comes back. A wave doesn't start until
+  someone on your team is alive, so solo players can take their time on the spawn screen.
+- **Losing.** You lose if the horde overruns the last stand (stands on it for 10 s with none of
+  you near), or if every defender is down at once. The score is how many waves you survived.
+
+### The shop
+
+Each kill earns 5 credits for the whole team, shown as your team's score. In each break, the
+map's spare command posts become **shop pads**, marked on the HUD, each offering one item. A
+human standing on a pad for 2 s buys its item if the team can afford it. A pad sells once a
+break, and the offers change every break.
+
+| Item | Credits | |
+|---|---|---|
+| Surveillance | 75 | Enemies show on the map. |
+| Adrenaline | 100 | Energy regenerates 3× faster. |
+| Bacta Refinery | 150 | Health regenerates. |
+| Advanced Armor | 150 | 25% extra health on spawning. |
+| Blaster Amplification | 250 | More damage. |
+| Leadership | 300 | Your team's hero comes back. |
+| Hero | 250 | Unlocks your side's hero for the team. Someone picks it on the spawn screen. |
+| Speeder bike | 80 | Appears next to the last stand. |
+| Hover tank | 200 | Appears next to the last stand. |
+
+The first six are Galactic Conquest's enhancements, which the engine runs one per team at a
+time: buying one replaces the one you have, and the one you have isn't offered. Stepping on a pad
+shows the enhancement's name, using the game's own Galactic Conquest text. The hero and vehicle
+pads don't show a name.
+
+Every map works straight away. The last stand is the players' post farthest from the enemy's.
+The horde spawns at the two posts farthest from it (one on a three-post map). Every other post
+is a shop pad. The log says which, in a line starting `OpenSWBF2 horde: last stand`. Nothing can
+be captured in Horde.
+
+### Horde settings
+
+```lua
+HordeMap("tat2g", {
+	lastStand = "cp1",
+	hordeSpawns = { "cp5", "cp6" },
+	shopPads = { "cp2", "cp3", "cp4" },
+	firstWave = 15,
+	creditsPerKill = 10,
+})
+```
+
+| Setting | Default | |
+|---|---|---|
+| `lastStand` / `hordeSpawns` / `shopPads` | worked out | Post names. |
+| `hordeSpawnCount` | `2` | For the automatic layout. |
+| `firstWave` / `perWave` | `10` / `4` | Enemies in wave 1, and how many more each wave. |
+| `healthPerWave` / `maxHealthMult` | `0.10` / `4.0` | Enemy health growth per wave, and its cap. |
+| `bossEvery` / `bossHealthMult` | `5` / `3.0` | A boss every Nth wave (`0`: never), and its extra health. |
+| `breakTime` / `firstBreak` | `20` / `30` | Seconds between waves, and before the first. |
+| `overrunRadius` / `overrunTime` | `12` / `10` | How close, and for how long, the horde must hold the last stand with no defender near. |
+| `wipeGrace` | `3` | Seconds with every defender down before it's over. |
+| `creditsPerKill` / `creditsPerBoss` / `startCredits` | `5` / `100` / `0` | Credits (the score shows up to 895). |
+| `shop` | per era | The items: `{ id, kind = "bonus" \| "hero" \| "vehicle", price, bonus, class, message }`. `HordeShop("g")` is the default. |
+| `padRadius` / `buyHoldTime` | `6` / `2` | How close to a pad, and for how long, to buy. |
+| `playersTeam` / `hordeTeam` | `1` / `2` | The humans' team (all humans are put on team 1). |
+| `aiObjectiveWeight` / `aiFightWeight` | `100` / `25` | How strongly bots on both sides go for the last stand, and how strongly they roam and fight instead. |
+
 ## Tests
 
 `mods/custommodes/tests/run_tests.sh` (Linux, macOS or WSL, with g++) builds the game's own
@@ -201,7 +278,10 @@ both modes against a mock of the engine together with the real `objective.lua` a
   delivery, time-out, overtime, the vehicle lock, respawning, recording.
 - **Rush:** the automatic layout and stage sizes, locking and unlocking, lives per death and per
   capture, defeat, victory, bots and markers, set stages, the clock, `lockCaptured` off.
-- **Both:** the client side, the loading hooks and the menu entries.
+- **Horde:** the layout, wave sizes and enemy health, the dead staying down until the break,
+  credits, the boss, the shop pads and their items, one enhancement at a time, the
+  enhancement reaching clients, overrun, everyone down, and waiting for a player to spawn.
+- **All modes:** the client side, the loading hooks and the menu entries.
 
 ## Not tested in the game yet
 
@@ -227,7 +307,21 @@ source and the mock engine, not in a real match.
 - **Automatic stages.** The automatic split follows straight-line distance from the attackers'
   base, which may not match how a map plays. Check the log and list the stages if it doesn't.
 
-**Both:**
+**Horde:**
+
+- **Keeping the dead out.** Players can only spawn at a post their team owns. That is how the
+  engine's spawn code reads, but the spawn screen with no post to pick hasn't been seen.
+- **Enhancements in multiplayer.** The engine doesn't network them, so the server sends the
+  active one in a team value that isn't shown on the HUD while team points are, and every
+  machine switches it on itself. That follows the engine source.
+- **Bosses.** Every 5th wave unlocks the enemy hero. Whether a bot takes it depends on the hero
+  settings: OpenSWBF2's AI heroes option, or single player's hero rules.
+- **Vehicles.** `imp_hover_speederbike` and `rep_hover_barcspeeder`, like Payload's tanks, need
+  to exist in the stock sides. Change `shop` if one doesn't.
+- **Text.** Pads use the game's Galactic Conquest text for names, so they only show if those
+  strings are loaded in a battle.
+
+**All modes:**
 
 - **Messages.** The game shows only localized text, so there are no custom on-screen messages.
   Progress shows in the score, the timer and the HUD markers.

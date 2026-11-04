@@ -28,6 +28,13 @@ function Mock.Reset()
 	Mock.ticketFns = {}
 	Mock.defeat = nil
 	Mock.cpNames = { "CP1", "cp2" }
+	Mock.spawnFns = {}
+	Mock.aiSpawn = { [1] = true, [2] = true }
+	Mock.botsPerTeam = 20
+	Mock.bonus = {}
+	Mock.bleed = {}
+	Mock.heroUnlocked = {}
+	Mock.heroes = {}
 end
 
 function Mock.Record(name, a1, a2, a3, a4)
@@ -149,6 +156,7 @@ end
 
 function Mock.AddEntity(name, x, y, z, team)
 	local e = { name = string.lower(name), x = x, y = y, z = z, team = team or 0, alive = true, props = {}, capturable = true }
+	if string.find(e.name, "^cp") then e.isPost = true end
 	Mock.entities[e.name] = e
 	return e
 end
@@ -259,7 +267,80 @@ function AddAIGoal(team, kind, weight, target)
 end
 function ClearAIGoals(t) Mock.Record("ClearAIGoals", t) end
 function DeleteAIGoal(g) Mock.Record("DeleteAIGoal", g) end
-function AllowAISpawn(t, b) Mock.Record("AllowAISpawn", t, b) end
+function AllowAISpawn(t, b) Mock.aiSpawn[t] = b Mock.Record("AllowAISpawn", t, b) end
+function OnCharacterSpawn(fn) table.insert(Mock.spawnFns, fn) end
+function GetNumTeamMembersAlive(t)
+	local n, i = 0
+	for i = 1, table.getn(Mock.teams[t] or {}) do
+		local ch = Mock.Char(Mock.teams[t][i])
+		if ch.unit.alive then n = n + 1 end
+	end
+	return n
+end
+function GetEntityClassName(e) e = Ent(e) return e and e.class end
+function GetObjectHealth(e)
+	e = Ent(e)
+	local max = e.props["MaxHealth"] or e.baseHealth or 300
+	return e.props["CurHealth"] or max, max
+end
+function ActivateBonus(t, name, on)
+	if on == nil then on = true end
+	Mock.bonus[t] = on and name or (Mock.bonus[t] == name and nil or Mock.bonus[t])
+	Mock.Record("ActivateBonus", t, name, on)
+end
+-- the network sends a bleed rate in 5 bits over 0..8
+function SetBleedRate(t, r) Mock.bleed[t] = math.floor(r * 31 / 8 + 0.5) * 8 / 31 end
+function GetBleedRate(t) return Mock.bleed[t] or 0 end
+function UnlockHeroForTeam(t) Mock.heroUnlocked[t] = true Mock.Record("UnlockHeroForTeam", t) end
+function ForceHumansOntoTeam1() Mock.Record("ForceHumansOntoTeam1") end
+function Mock.SetHeroClass(t, c) Mock.heroes[t] = c end
+
+local function PostOf(t)
+	local name, e
+	for name, e in pairs(Mock.entities) do
+		if e.team == t and e.isPost then return e end
+	end
+end
+
+-- a unit appears, as the engine spawns one
+function Mock.Spawn(c)
+	local ch = Mock.Char(c)
+	local post = PostOf(ch.team)
+	ch.unit = { x = post and post.x or 0, y = 0, z = post and post.z or 0, alive = true, props = {},
+		class = ch.class, baseHealth = 300 }
+	local i
+	for i = 1, table.getn(Mock.spawnFns) do Mock.spawnFns[i](c) end
+end
+
+-- the engine's spawn rules, once: bots while their team has more tickets than members alive
+-- (and fewer than the bot limit alive), and only at a post the team owns; humans likewise
+function Mock.SpawnTick()
+	local t
+	for t = 1, 2 do
+		local i
+		for i = 1, table.getn(Mock.teams[t]) do
+			local c = Mock.teams[t][i]
+			local ch = Mock.Char(c)
+			if not ch.unit.alive and PostOf(t) then
+				local alive = GetNumTeamMembersAlive(t)
+				if ch.human then
+					Mock.Spawn(c)
+				elseif ch.hero then
+					-- a hero isn't counted against the bots (Character::Spawn skips mMemberActive)
+					if Mock.heroUnlocked[t] then Mock.heroUnlocked[t] = false Mock.Spawn(c) end
+				elseif Mock.aiSpawn[t] and (Mock.reinforcements[t] or 0) > alive and alive < Mock.botsPerTeam then
+					Mock.Spawn(c)
+				end
+			end
+		end
+	end
+end
+
+function Mock.KillChar(c, killer)
+	Mock.Char(c).unit.alive = false
+	local i
+	for i = 1, table.getn(Mock.deathFns) do Mock.deathFns[i](c, killer) end
+end
 function MapAddEntityMarker(e, ...) Mock.Record("MapAddEntityMarker", e, arg[3]) end
 function MapRemoveEntityMarker(e) Mock.Record("MapRemoveEntityMarker", e) end
 function MapHideCommandPosts() end
@@ -311,6 +392,8 @@ Mock.files["tat2g_con"] = function()
 		ReadDataFile("ingame.lvl")
 		ReadDataFile("sound\\tat.lvl;tat2gcw")
 		ReadDataFile("SIDE\\imp.lvl", "imp_inf_rifleman")
+		SetHeroClass(IMP, "imp_hero_darthvader")
+		SetHeroClass(ALL, "all_hero_hansolo")
 		ReadDataFile("SIDE\\all.lvl", "all_inf_rifleman")
 		SetMemoryPoolSize("EntityHover", 2)
 		SetMemoryPoolSize("Weapon", 200)

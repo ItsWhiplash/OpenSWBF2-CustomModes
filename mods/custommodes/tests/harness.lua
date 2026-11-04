@@ -38,17 +38,19 @@ function StartMission(cfg, mapFn, posts, conquestPosts)
 	Mock.files["objectiveconquest"] = MISSION .. "objectiveconquest.lua"
 	Mock.files["objectivepayload"] = MOD .. "objectivepayload.lua"
 	Mock.files["objectiverush"] = MOD .. "objectiverush.lua"
+	Mock.files["objectivehorde"] = MOD .. "objectivehorde.lua"
 	Mock.files["custommode_mission"] = MOD .. "custommode_mission.lua"
 	__OBJECTIVE_LUA__ = nil
 	ScriptPreInit, ScriptInit, ScriptPostLoad = nil, nil, nil
 	ATT, DEF, RetailReadDataFile, gCustomMode = nil, nil, nil, nil
-	ReadDataFile, SetMemoryPoolSize = nil, nil
+	ReadDataFile, SetMemoryPoolSize, SetHeroClass = nil, nil, nil
 
 	ScriptCB_DoFile("custommode_mission")
 	_G[mapFn or "PayloadMap"]("tat2g", cfg)
 
 	ReadDataFile = Mock.ReadDataFile
 	SetMemoryPoolSize = Mock.SetMemoryPoolSize
+	SetHeroClass = Mock.SetHeroClass
 	posts = posts or { { "cp1", 0, -20, 1 }, { "cp2", 0, 60, 2 }, { "cp3", 0, 120, 2 } }
 	Mock.cpNames = {}
 	local i

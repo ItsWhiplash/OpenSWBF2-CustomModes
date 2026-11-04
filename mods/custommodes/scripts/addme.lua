@@ -7,6 +7,7 @@
 local Modes = {
 	pay = { name = "Payload", icon = "mode_icon_ctf" },
 	rush = { name = "Rush", icon = "mode_icon_con" },
+	horde = { name = "Horde", icon = "mode_icon_hunt" },
 }
 local Id, Mode
 for Id, Mode in pairs(Modes) do

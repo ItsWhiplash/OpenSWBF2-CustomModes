@@ -150,6 +150,48 @@ def test_world(out, luac):
         check(data[2] == 2 and struct.unpack_from("<HH", data, 12) == (128, 128), tex + " is a 128x128 TGA")
 
 
+def test_hoth(out, luac):
+    import hoth
+    h, t, w, root = hoth.build(out)
+    world_dir = os.path.join(root, "Worlds", "HTH", "world1")
+    lyr = open(os.path.join(world_dir, "HTH_conquest.lyr")).read()
+    rgn = open(os.path.join(world_dir, "HTH_conquest.RGN")).read()
+    pth = open(os.path.join(world_dir, "HTH_conquest.PTH")).read()
+    posts = re.findall(r'Object\("(cp\d)", "com_bldg_controlzone"', lyr)
+    check(posts == ["cp%d" % i for i in range(1, 10)], "Hoth: nine command posts")
+    check(all('Name("%s_capture")' % cp in rgn and 'Path("%s_spawn")' % cp in pth for cp in posts),
+          "Hoth: every post has its regions and spawn path")
+    check(t.length == 512 and t.grid_scale * t.length == 4096, "Hoth: 4 km of terrain")
+    # the hangar post is inside the bay: the bunker's front 60 m, between its side blocks
+    bx, bz = hoth.BASE
+    cp9 = [p for p in hoth.POSTS if p[0] == "cp9"][0]
+    front = bz - 60
+    check(abs(cp9[1] - bx) < 70 and front < cp9[2] < front + 60, "Hoth: cp9 is inside the hangar")
+    check(all(abs(h[y][x] - hoth.FLOOR) < 0.01 for x, y in ((256, 95), (240, 98))), "Hoth: the base terrace is flat")
+    for kind, x, z, yaw in hoth.placements(h):
+        y = hoth.FLOOR if kind == "base" else hoth.height_at(h, x, z)
+        check(20 < y < 120, "Hoth: %s at %.0f m stands on the plain" % (kind, y))
+    for name, x, z, team, label in hoth.POSTS:
+        y = hoth.FLOOR if name == "cp9" else hoth.height_at(h, x, z)
+        check(20 < y < 120, "Hoth: %s on the plain (%.0f m)" % (name, y))
+    spawns = re.findall(r'ControlZone\("(cp\d)"\)', lyr)
+    check(len(spawns) == 9 and all(cp in posts for cp in spawns), "Hoth: vehicle spawns name real posts")
+    pln = open(os.path.join(world_dir, "HTH.PLN")).read()
+    hubs = set(re.findall(r'Hub\("([^"]+)"\)', pln))
+    links = re.findall(r'Start\("([^"]+)"\);\s*End\("([^"]+)"\)', pln)
+    check(all(a in hubs and b in hubs for a, b in links), "Hoth: every link joins two hubs")
+    check(any("Hangar1" in (a, b) and not b.startswith("Hangar") for a, b in links), "Hoth: the hangar links to the plain")
+    script = os.path.join(root, "Common", "scripts", "HTH", "HTHg_con.lua")
+    text = open(script).read()
+    check(all('name = "%s"' % p[0] in text for p in hoth.POSTS), "Hoth: every post in conquest")
+    if luac:
+        r = subprocess.run([luac, "-o", os.devnull, script], capture_output=True, text=True)
+        check(r.returncode == 0, "Hoth: HTHg_con.lua compiles: %s" % r.stderr.strip())
+    for kind in hoth.STRUCTURES:
+        check(os.path.exists(os.path.join(root, "Worlds", "HTH", "msh", "hth_%s.msh" % kind)) and
+              os.path.exists(os.path.join(root, "Worlds", "HTH", "odf", "hth_%s.odf" % kind)), "Hoth: %s model" % kind)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--luac")
@@ -159,6 +201,8 @@ def main():
     test_ship()
     with tempfile.TemporaryDirectory() as tmp:
         test_world(tmp, args.luac)
+    with tempfile.TemporaryDirectory() as tmp:
+        test_hoth(tmp, args.luac)
     print("mapgen: %d passed, %d failed" % (passed, failures))
     sys.exit(1 if failures else 0)
 

@@ -81,6 +81,30 @@ def _water(height=0.0, u_velocity=0.0, v_velocity=0.0, u_repeat=0.0, v_repeat=0.
         + _tex_string(texture)
 
 
+def _cluster_flags_numpy(t, c):
+    """The texture bits of every cluster (as the loop in write_ter works them out), with numpy if
+    it's there: a texture counts for a cluster if it has weight anywhere in the cluster or the
+    one-point border around it."""
+    try:
+        import numpy as np
+    except ImportError:
+        return None
+    n = t.length
+    flags = np.zeros((c, c), dtype=np.int64)
+    for s in range(TEXTURES):
+        wmap = np.asarray(t.weights[s]) > 0
+        if not wmap.any():
+            continue
+        padded = np.pad(wmap, 1, mode="edge")
+        # any weight in each 6x6 window starting at (y-1, x-1) for every cluster corner
+        acc = np.zeros((c, c), dtype=bool)
+        for dy in range(CLUSTER + 2):
+            for dx in range(CLUSTER + 2):
+                acc |= padded[dy:dy + n:CLUSTER, dx:dx + n:CLUSTER][:c, :c]
+        flags |= acc.astype(np.int64) << s
+    return flags
+
+
 def write_ter(t, cuts=()):
     n = t.length
     half = n // 2
@@ -126,12 +150,19 @@ def write_ter(t, cuts=()):
     mins = [[0] * c for _ in range(c)]
     maxs = [[0] * c for _ in range(c)]
     cflags = [[0] * c for _ in range(c)]
+    fast = _cluster_flags_numpy(t, c)
     for y in range(0, n, CLUSTER):
         for x in range(0, n, CLUSTER):
             cy = (n - 1 - y) // CLUSTER
             mins[cy][x // CLUSTER] = -32768
             maxs[cy][x // CLUSTER] = 32767
             f = 0
+            if fast is not None:
+                f = int(fast[y // CLUSTER][x // CLUSTER])
+                if t.water_map[y // CLUSTER][x // CLUSTER]:
+                    f |= WATER_BIT
+                cflags[cy][x // CLUSTER] = f
+                continue
             for ly in range(-1, CLUSTER + 1):
                 for lx in range(-1, CLUSTER + 1):
                     ax = min(max(x + lx, 0), n - 1)

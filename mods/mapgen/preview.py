@@ -12,6 +12,13 @@ import matplotlib.pyplot as plt  # noqa: E402
 TEAM_COLOURS = {0: "#d9d9d9", 1: "#3b82f6", 2: "#ef4444"}
 
 
+def ground_at(h, grid, x, z):
+    n = h.shape[0]
+    gx = min(max(int(round(x / grid + n / 2)), 0), n - 1)
+    gy = min(max(int(round(-z / grid + n / 2 - 1)), 0), n - 1)
+    return h[gy][gx]
+
+
 def hillshade(h, grid, azimuth=315, altitude=40):
     gz, gx = np.gradient(h, grid)
     slope = np.arctan(np.hypot(gx, gz))
@@ -20,7 +27,9 @@ def hillshade(h, grid, azimuth=315, altitude=40):
     return np.clip(np.sin(alt) * np.cos(slope) + np.cos(alt) * np.sin(slope) * np.cos(az - aspect), 0, 1)
 
 
-def render(h, w, out_dir, ship_boxes, ship_pos, grid=8.0):
+def render(h, w, out_dir, ship_boxes, ship_pos, grid=8.0, map_name="Ground to Space", views=None,
+           bay=(-80.0, 80.0, -85.0, 30.0)):
+    """views: (file name, eye, target, title) for perspective images; the default is Ground to Space's."""
     os.makedirs(out_dir, exist_ok=True)
     n = h.shape[0]
     half = n * grid / 2
@@ -52,7 +61,7 @@ def render(h, w, out_dir, ship_boxes, ship_pos, grid=8.0):
     for layer, cls, name, pos, rot, team, props in w.objects:
         if cls == "com_bldg_controlzone":
             label = dict(props).get("Label", name)
-            on_ship = pos[1] > 200
+            on_ship = pos[1] - ground_at(h, grid, pos[0], pos[2]) > 15
             ax.scatter([pos[0]], [pos[2]], s=120, c=TEAM_COLOURS[team], edgecolors="black",
                        marker="^" if on_ship else "o", zorder=5)
             ax.annotate("%s %s%s" % (name, label, " (ship)" if on_ship else ""), (pos[0], pos[2]),
@@ -60,8 +69,7 @@ def render(h, w, out_dir, ship_boxes, ship_pos, grid=8.0):
                         bbox=dict(boxstyle="round,pad=0.2", fc="black", alpha=0.55, lw=0))
         elif cls == "com_item_vehicle_spawn":
             ax.scatter([pos[0]], [pos[2]], s=40, c="#facc15", marker="s", edgecolors="black", zorder=5)
-    ax.set_title("Ground to Space: top-down (circles: posts, triangles: posts on the ship deck, "
-                 "squares: fighters)", fontsize=9)
+    ax.set_title("%s: top-down (circles: posts, triangles: raised posts, squares: vehicles)" % map_name, fontsize=9)
     ax.set_xlabel("X (m)")
     ax.set_ylabel("Z (m)")
     path = os.path.join(out_dir, "top_down.png")
@@ -71,22 +79,26 @@ def render(h, w, out_dir, ship_boxes, ship_pos, grid=8.0):
     paths.append(path)
 
     # --- a perspective view from the south, drawn back to front
-    path = os.path.join(out_dir, "view_3d.png")
-    perspective(h, grid, ship_boxes, ship_pos, w, path,
-                title="Ground to Space: from the south-east, the ship %d m over the valley" % ship_pos[1])
-    paths.append(path)
-    path = os.path.join(out_dir, "view_hangar.png")
-    sx, sy, sz = ship_pos
-    perspective(h, grid, ship_boxes, ship_pos, w, path, eye=(sx + 230.0, sy - 25.0, sz - 470.0),
-                target=(sx, sy + 12.0, sz - 40.0),
-                title="Ground to Space: a fighter's approach to the hangar's open side")
-    paths.append(path)
+    if views is None:
+        sx, sy, sz = ship_pos
+        views = [("view_3d.png", (520.0, 620.0, -1180.0), (-40.0, 120.0, 220.0),
+                  "Ground to Space: from the south-east, the ship %d m over the valley" % sy),
+                 ("view_hangar.png", (sx + 230.0, sy - 25.0, sz - 470.0), (sx, sy + 12.0, sz - 40.0),
+                  "Ground to Space: a fighter's approach to the hangar's open side")]
+    for fname, eye, target, title in views:
+        path = os.path.join(out_dir, fname)
+        perspective(h, grid, ship_boxes, ship_pos, w, path, eye=eye, target=target, title=title, bay=bay)
+        paths.append(path)
     return paths
 
 
 SAND = np.array([0.80, 0.68, 0.48])
 DIRT = np.array([0.60, 0.46, 0.32])
 ROCK = np.array([0.48, 0.44, 0.40])
+# the three ground colours (flat, slope, cliff); a map can set its own, such as snow
+PALETTE = [SAND, DIRT, ROCK]
+# heights above which the ground turns to rock (start, over)
+ROCK_HEIGHT = (90.0, 60.0)
 
 
 def ground_colours(h, grid):
@@ -94,10 +106,10 @@ def ground_colours(h, grid):
     gz, gx = np.gradient(h, grid)
     slope = np.hypot(gx, gz)
     rock = np.clip((slope - 0.55) / 0.3, 0, 1)
-    rock = np.maximum(rock, np.clip((h - 90) / 60, 0, 1))
+    rock = np.maximum(rock, np.clip((h - ROCK_HEIGHT[0]) / ROCK_HEIGHT[1], 0, 1))
     dirt = np.clip((slope - 0.18) / 0.25, 0, 1) * (1 - rock)
     sand = 1 - rock - dirt
-    return sand[..., None] * SAND + dirt[..., None] * DIRT + rock[..., None] * ROCK
+    return sand[..., None] * PALETTE[0] + dirt[..., None] * PALETTE[1] + rock[..., None] * PALETTE[2]
 
 
 def perspective(h, grid, ship_boxes, ship_pos, w, path, eye=(520.0, 620.0, -1180.0), target=(-40.0, 120.0, 220.0),
@@ -132,7 +144,7 @@ def perspective(h, grid, ship_boxes, ship_pos, w, path, eye=(520.0, 620.0, -1180
         colours.append(c)
         depths.append(float(z.mean()))
 
-    step = 2
+    step = max(2, n // 128)
     col = ground_colours(h, grid)
     for y in range(0, n - step, step):
         for x in range(0, n - step, step):
@@ -166,7 +178,7 @@ def perspective(h, grid, ship_boxes, ship_pos, w, path, eye=(520.0, 620.0, -1180
                 continue                      # facing away
             # inside the hangar bay: lit warmer, as its lights would
             local = centre - np.array(ship_pos)
-            inside = bay and bay[0] <= local[0] <= bay[1] and bay[2] <= local[2] <= 0.5 and -0.5 <= local[1] <= bay[3] + 0.5
+            inside = bay is not None and bay[0] <= local[0] <= bay[1] and bay[2] <= local[2] <= 0.5 and -0.5 <= local[1] <= bay[3] + 0.5
             add(quad, np.array([0.95, 0.80, 0.45]) if inside else hull, normal if not inside else -normal * 0 + sun)
 
     order = np.argsort(depths)[::-1]

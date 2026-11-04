@@ -37,6 +37,32 @@ This writes `mods/mapgen/out/data_GTS` (a mod-tools map folder), plus preview im
 Everything the map uses that isn't stock is generated: the ship model and its prop class, the
 hull plating texture, and the sand, dirt and rock terrain textures.
 
+## The second map: HTH, "Hoth"
+
+```bash
+python mods/mapgen/hoth.py --preview
+```
+
+A 4 km frozen battlefield (512 × 512 terrain points 8 m apart), Galactic Civil War only. It has
+four times the area of Ground to Space. The Empire attacks from the south, and the Rebels hold
+the rest:
+
+| | |
+|---|---|
+| Terrain | Rolling snowfields with drifts, rock and ice outcrops (some 20–40 m spires) for cover, a long ridge across the middle with a pass at the centre, and a frozen lake. Jagged mountains (ridged noise, up to about 540 m) ring the map and close in behind the base. The boundary is an oval about 3.4 × 3.1 km. |
+| Defences | A zig-zag trench line 3.5 m deep across the north, with crossings at the centre and both ends, and six gun bunkers behind it. Further back are a shield generator (a stepped dome with a mast) and an ion cannon (a ball turret with a raised barrel). |
+| The base | A long bunker set into the mountain foot, on a cleared terrace. Its 140 × 28 m hangar is open to the plain. |
+| Command posts | Nine: cp1 Imperial Landing (Empire), cp2 Frozen Outpost, cp3 Ice Lake, cp4 Ridge Pass, cp5 West Trench, cp6 East Trench, cp7 Shield Generator, cp8 Ion Cannon and cp9 Base Hangar (inside the hangar). With the landing as the attackers' base, the other eight split into Rush's 3, 3 and 2 stages, nearest first. |
+| Vehicles | Two AT-ATs and three AT-STs at the Imperial landing; two snowspeeders at the base, and tauntauns at the trenches. |
+| Bots | A navigation graph of about 1,300 hubs and 2,500 links over the walkable plain, with hubs in the hangar joined to the terrace outside. |
+| Script | `HTHg_con.lua`: Conquest with the stock Hoth snow units, Vader and Luke, walkers (`AddWalkerType`), and `SetWorldExtents(2200)`. |
+
+The structures are models made from blocks, like Ground to Space's ship: `hth_base`,
+`hth_shieldgen`, `hth_ioncannon` and `hth_bunker`. They share a generated plating texture, and
+the snow, packed snow, ice and rock terrain textures are generated too. The layout is original,
+not a copy of the stock Hoth map, and it builds and installs the same way as Ground to Space
+(with the code `HTH`).
+
 ## Building it with the Mod Tools (on Windows)
 
 This part needs the Windows-only SWBF2 Mod Tools; the generator itself runs anywhere.

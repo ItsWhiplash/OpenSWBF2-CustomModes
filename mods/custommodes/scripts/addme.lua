@@ -9,6 +9,7 @@ local Modes = {
 	rush = { name = "Rush", icon = "mode_icon_con" },
 	horde = { name = "Horde", icon = "mode_icon_hunt" },
 	snd = { name = "Search & Destroy", icon = "mode_icon_ass" },
+	inf = { name = "Infiltration", icon = "mode_icon_hunt" },
 }
 local Id, Mode
 for Id, Mode in pairs(Modes) do

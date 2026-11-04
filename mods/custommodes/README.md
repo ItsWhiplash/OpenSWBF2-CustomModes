@@ -10,6 +10,9 @@ New game modes for the stock maps, packed as one AddOn folder:
   waves, and spends kill credits at shop pads between waves.
 - **[Search & Destroy](#search--destroy)** (`_snd`): rounds with one life each; the attackers
   plant a bomb at one of two sites, and the defenders stop or defuse it.
+- **[Infiltration](#infiltration)** (`_inf`): co-op. A squad with one life each sneaks in,
+  destroys targets across the map, and extracts, while a bot garrison raises alarms that get
+  worse each time.
 
 Both modes work in single player with bots, and on a server where anyone who joins can play.
 
@@ -22,7 +25,8 @@ works with the build you already have, on Windows or the Docker server.
   map has them.
 - `CUSTOMMODES/data/_lvl_pc/mission.lvl` holds:
   - the modes: `scripts/objectivepayload.lua`, `scripts/objectiverush.lua`,
-    `scripts/objectivehorde.lua` and `scripts/objectivesnd.lua`;
+    `scripts/objectivehorde.lua`, `scripts/objectivesnd.lua` and
+    `scripts/objectiveinfiltration.lua`;
   - the shared loader: `scripts/custommode_mission.lua`;
   - one small mission per map and mode: `maps/<mode>/<map><era>.lua`, for example
     `maps/rush/tat2g.lua` for `tat2g_rush`.
@@ -323,6 +327,62 @@ SnDMap("tat2g", {
 | `attackers` | stock `ATT` | `"def"` swaps which side attacks first. |
 | `aiObjectiveWeight` / `aiFightWeight` | `100` / `25` | How strongly bots go for the sites, and how strongly they roam and fight instead. |
 
+## Infiltration
+
+A co-op mission. Every human is on the squad, with 3 bot squadmates by default, against a bot
+garrison holding the rest of the map.
+
+- **One life.** The squad inserts at one command post, which stays open for 20 s (or until
+  someone is in) and then closes. Nobody spawns again, and if the whole squad is down, the
+  mission fails.
+- **Targets.** Five enemy vehicles are parked as depots, one beside each of the five posts
+  farthest from the insertion, and marked on the squad's HUD. Destroy them with whatever works on
+  a tank. Nobody can get in one. The squad's score is targets destroyed.
+- **Extraction.** When the last target blows, extraction opens: by default, back at the insertion
+  post. A survivor standing there for 5 s wins the mission.
+- **The garrison and its alarms.** The garrison starts quiet: 6 guards, passive, and half-blind
+  (bot sight reduced). The alarm trips when a target blows, or when 4 guards die within 20 s.
+  An alarm brings 14 guards, aggressive and sharp-eyed, hunting the squad, with a timer showing
+  how long it lasts (60 s). Then they stand down, but every alarm leaves a bigger quiet garrison
+  (+3) and makes the next alarm worse (+4 guards, +15 s). The garrison's score is the alarm
+  level. Every target blowing is an alarm, so the last stretch to extraction is the hardest.
+
+How many guards can be alive at once also follows the bot count in your Instant Action or
+server settings. Set it high enough for the alarm sizes (18 by the second alarm).
+
+Every map works straight away. The squad inserts at its own post farthest from the enemy. The
+garrison holds every other post, and the targets are the garrison's side's tank (an AAT,
+Imperial fighter tank and so on), worked out from its hero. The log says the layout, in a line
+starting `OpenSWBF2 infiltration: insertion`. Targets can also be placed anywhere by position;
+a Payload track recording is an easy way to get positions.
+
+### Infiltration settings
+
+```lua
+InfiltrationMap("tat2g", {
+	insertion = "cp1",
+	extraction = "cp4",
+	targets = { { post = "cp5" }, { post = "cp6" }, { 120.0, 4.5, -60.0 } },
+	squadBots = 0,
+})
+```
+
+| Setting | Default | |
+|---|---|---|
+| `insertion` / `extraction` | worked out | Post names. Extraction defaults to the insertion post. |
+| `targets` | beside the farthest posts | `{ post = "cp5" }` (parked beside it, away from the insertion) or `{ x, y, z }`. |
+| `targetCount` / `targetOffset` | `5` / `10` | For the automatic targets. |
+| `targetClass` | the garrison's tank | Any vehicle class. Load it with `extraData = { { "SIDE\\xxx.lvl", "class" } }` if the map doesn't. |
+| `spawnWindow` / `squadBots` | `20` / `3` | Seconds to spawn, and bot squadmates on top of the humans. |
+| `extractRadius` / `extractTime` | `8` / `5` | Metres and seconds at extraction. |
+| `quietGarrison` / `quietPerLevel` | `6` / `3` | Guards when quiet, and more after each alarm. |
+| `alarmGarrison` / `alarmPerLevel` | `14` / `4` | Guards in the first alarm, and more in each later one. |
+| `alarmTime` / `alarmTimePerLevel` | `60` / `15` | How long alarms last. |
+| `noiseKills` / `noiseWindow` | `4` / `20` | Guards killed within that many seconds trips the alarm. |
+| `quietAggression` / `alarmAggression` | `0.3` / `1.0` | The garrison's aggressiveness. |
+| `quietVision` / `alarmVision` | `0.5` / `1.0` | Bot sight, 0.1 to 1. The engine has one setting for every bot, so squad bots see less while it's quiet too. |
+| `aiTargetWeight` / `aiHuntWeight` | `100` / `60` | Squad bots go for targets, the garrison guards them, and hunts during an alarm. |
+
 ## Tests
 
 `mods/custommodes/tests/run_tests.sh` (Linux, macOS or WSL, with g++) builds the game's own
@@ -340,6 +400,9 @@ both modes against a mock of the engine together with the real `objective.lua` a
 - **Search & Destroy:** the layout, one life per round, planting and its reset, detonation and
   the site coming back, defusing, elimination before and after a plant, time running out,
   halftime, the match, and waiting for a side to spawn.
+- **Infiltration:** the layout and targets, the target vehicle by side, one life, the quiet
+  garrison, alarms from targets and from noise, escalation and standing down, extraction, a
+  squad wipe, and waiting for the squad to spawn.
 - **All modes:** the client side, the loading hooks and the menu entries.
 
 ## Not tested in the game yet
@@ -387,6 +450,15 @@ source and the mock engine, not in a real match.
   and whether the blast plays, hasn't been seen.
 - **Clearing the field.** Survivors are killed between rounds. It's a plain kill, so it counts in
   the death stats, and some maps may show kill messages for it.
+
+**Infiltration:**
+
+- **Target vehicles.** `all_hover_combatspeeder` and `cis_hover_aat`, with Payload's two tanks,
+  must exist in the stock sides. If a target can't be made, the log says so; set `targetClass`.
+  Targets are parked 10 m from a post, which may put some inside scenery on tight maps. Place
+  those by position.
+- **Stealth.** Aggressiveness and bot sight follow the engine source, but how sneaky a quiet
+  garrison really feels needs a match to tune.
 
 **All modes:**
 

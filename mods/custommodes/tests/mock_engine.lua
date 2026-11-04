@@ -296,6 +296,8 @@ end
 function SetBleedRate(t, r) Mock.bleed[t] = math.floor(r * 31 / 8 + 0.5) * 8 / 31 end
 function GetBleedRate(t) return Mock.bleed[t] or 0 end
 function UnlockHeroForTeam(t) Mock.heroUnlocked[t] = true Mock.Record("UnlockHeroForTeam", t) end
+function SetTeamAggressiveness(t, v) Mock.aggression = Mock.aggression or {} Mock.aggression[t] = v end
+function SetAIViewMultiplier(v) Mock.vision = v end
 function ForceHumansOntoTeam1() Mock.Record("ForceHumansOntoTeam1") end
 function Mock.SetHeroClass(t, c) Mock.heroes[t] = c end
 

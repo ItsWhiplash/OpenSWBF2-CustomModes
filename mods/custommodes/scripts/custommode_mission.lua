@@ -220,6 +220,31 @@ function HordeMap(code, cfg)
 	CustomModeMission(cfg)
 end
 
+-- Infiltration's targets for an era: each side's tank, both loaded, so the garrison gets its own
+InfiltrationEraTargets = {
+	g = { { "SIDE\\imp.lvl", "imp_hover_fightertank" }, { "SIDE\\all.lvl", "all_hover_combatspeeder" } },
+	c = { { "SIDE\\rep.lvl", "rep_hover_fightertank" }, { "SIDE\\cis.lvl", "cis_hover_aat" } },
+}
+
+-- Infiltration on a stock map: InfiltrationMap("tat2g", { ... })
+function InfiltrationMap(code, cfg)
+	local era = string.sub(code, -1)
+	local targets = InfiltrationEraTargets[era] or InfiltrationEraTargets.g
+	cfg.base = cfg.base or (code .. "_con")
+	if not cfg.targetClass and not cfg.targetClasses then
+		cfg.targetClasses = {}
+		local i
+		for i = 1, table.getn(targets) do
+			cfg.targetClasses[string.sub(targets[i][2], 1, 3)] = targets[i][2]
+		end
+		cfg.extraData = cfg.extraData or targets
+	end
+	cfg.memoryPools = cfg.memoryPools or { EntityHover = 8 }
+	cfg.objectiveScript = "ObjectiveInfiltration"
+	cfg.objectiveClass = "ObjectiveInfiltration"
+	CustomModeMission(cfg)
+end
+
 -- Search & Destroy on a stock map: SnDMap("tat2g", { ... })
 function SnDMap(code, cfg)
 	cfg.base = cfg.base or (code .. "_con")

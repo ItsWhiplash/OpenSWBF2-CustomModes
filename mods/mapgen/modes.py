@@ -89,16 +89,18 @@ def hth_modes(era):
                                                            (0, 400), (0, 700), (0, 1000), (0, 1150)]),
                    baseSpeed=3.0, speedPerPusher=0.8, maxSpeed=6.0, timeLimit=900, checkpointBonusTime=150,
                    checkpoints=[{"at": 0.35, "giveCPs": ["cp2", "cp3", "cp4"]}, {"at": 0.7, "giveCPs": ["cp5", "cp6"]}],
-                   initialCPs={"cp1": "att"})
+                   initialCPs={"cp1": "att", "cp10": "att", "cp11": "att"})
+    # the cruiser over the landing (cp10, cp11) is the Empire's, with the landing: their base
+    imperial = ["cp1", "cp10", "cp11"]
     return {
         "pay": payload,
-        # automatic: the outposts and ridge, the trenches and shield, then the cannon and the base
-        "rush": dict(common),
+        # the outposts and ridge, the trenches and shield, then the cannon and the base
+        "rush": dict(common, attackerBase=imperial),
         # the Empire holds its landing against Rebel waves from the north
         "horde": dict(common, lastStand="cp1", hordeSpawns=["cp4", "cp3"], shopPads=["cp2"]),
         # plant at the shield generator or the ion cannon
         "snd": dict(common, attackerSpawn="cp1", defenderSpawn="cp9", sites=["cp7", "cp8"]),
-        "inf": dict(common, insertion="cp1", extraction="cp1",
+        "inf": dict(common, insertion="cp1", extraction="cp1", idlePosts=["cp10", "cp11"],
                     targets=[{"post": "cp5"}, {"post": "cp6"}, {"post": "cp7"}, {"post": "cp8"}, [0.0, 41.0, 1100.0]]),
     }
 

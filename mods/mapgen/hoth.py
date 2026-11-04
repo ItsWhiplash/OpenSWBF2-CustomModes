@@ -41,6 +41,22 @@ POSTS = [
     ("cp9", 0.0, 1260.0, 2, "Base Hangar"),
 ]
 
+# the Imperial cruiser: Ground to Space's ship, hanging over the landing with its hangar open to
+# the north, toward the battle. Its deck posts are the Empire's; the Rebels can fly up and take them.
+SHIP_X, SHIP_Z = 0.0, -1260.0
+SHIP_Y = 420.0                # the hangar deck's height (the ground below is at 30 to 50 m)
+SHIP_YAW = 180.0              # turned round: the ship's hangar opens on its -Z side
+SHIP_POSTS = [
+    ("cp10", -50.0, -40.0, 1, "Cruiser Hangar"),
+    ("cp11", 50.0, -40.0, 1, "Cruiser Control"),
+]
+
+
+def ship_point(dx, dy, dz):
+    """A point in the ship's own frame (as in gts.py) in the world: turned round, so X and Z flip."""
+    return (SHIP_X - dx, SHIP_Y + dy, SHIP_Z - dz)
+
+
 BASE = (0.0, 1290.0)          # the bunker's hangar centre (X, Z); its floor is at FLOOR
 FLOOR = 40.0
 TRENCH_Z = 700.0
@@ -292,6 +308,9 @@ def world_parts(h):
         y = FLOOR if kind == "base" else height_at(h, x, z)
         for name, polys, material, colour, glows, collides in STRUCTURES[kind][0]():
             out.append((sh.offset(sh.rotate_y(polys, yaw), x, y, z), colour, glows))
+    import gts
+    for name, polys, material, colour, glows, collides in gts.ship_parts():
+        out.append((sh.offset(sh.rotate_y(polys, SHIP_YAW), SHIP_X, SHIP_Y, SHIP_Z), colour, glows))
     return out
 
 
@@ -335,6 +354,16 @@ def build_world(code, h):
     for name, x, z, team, label in POSTS:
         y = FLOOR if name == "cp9" else height_at(h, x, z)
         w.command_post(name, (x, y, z), team, layer=conquest, label=label, capture=10.0, control=20.0)
+    for name, dx, dz, team, label in SHIP_POSTS:
+        pos = ship_point(dx, 0.0, dz)
+        spawn = [(pos[0] + 6 * math.cos(a), SHIP_Y, pos[2] + 6 * math.sin(a))
+                 for a in [i * math.pi / 4 for i in range(8)]]
+        w.command_post(name, pos, team, layer=conquest, label=label, spawn=spawn, control_height=12)
+
+    # the cruiser, in the base layer so every mode has it, and lights in its hangar
+    w.object(c + "_ship", "ship", (SHIP_X, SHIP_Y, SHIP_Z), yaw=SHIP_YAW)
+    for k, dx in enumerate((-60.0, -20.0, 20.0, 60.0)):
+        w.light("cruiser%d" % (k + 1), ship_point(dx, 22.0, -25.0), (0.85, 0.92, 1.0), 38.0)
 
     for i, (kind, x, z, yaw) in enumerate(placements(h)):
         y = FLOOR if kind == "base" else height_at(h, x, z)
@@ -360,6 +389,19 @@ def build_world(code, h):
     spawn("speeder2", 90, 1120, "cp9", all_="all_fly_snowspeeder")
     spawn("tauntaun1", -430, 760, "cp5", all_="all_walk_tauntaun")
     spawn("tauntaun2", 430, 760, "cp6", all_="all_walk_tauntaun")
+    # fighters, the way up: TIEs in the cruiser's hangar, X-wings beside the base. Whoever holds
+    # the post gets their own side's fighter.
+    fighters = [("ClassImpATK", "imp_fly_tiefighter"), ("ClassImpDEF", "imp_fly_tiefighter"),
+                ("ClassAllATK", "all_fly_xwing"), ("ClassAllDEF", "all_fly_xwing")]
+    for i, dx in enumerate((-30.0, 30.0)):
+        props = [("ControlZone", "cp10"), ("SpawnTime", "15.0"), ("ExpireTimeEnemy", "20.0"),
+                 ("ExpireTimeField", "30.0")] + fighters
+        w.object("com_item_vehicle_spawn", "tie%d" % (i + 1), ship_point(dx, 1.0, -15.0), props=props, layer=conquest)
+    for i, x in enumerate((-220.0, 220.0)):
+        props = [("ControlZone", "cp9"), ("SpawnTime", "15.0"), ("ExpireTimeEnemy", "20.0"),
+                 ("ExpireTimeField", "30.0")] + fighters
+        w.object("com_item_vehicle_spawn", "xwing%d" % (i + 1), (x, height_at(h, x, 1100.0) + 1, 1100.0),
+                 props=props, layer=conquest)
 
     w.boundary = [(1700 * math.cos(a), 1550 * math.sin(a) - 30) for a in [i * math.pi / 16 for i in range(32)]]
     build_planning(w, h)
@@ -407,6 +449,14 @@ def build_planning(w, h, spacing=80.0):
         w.connect(a, b, world.AI_SOLDIER)
     apron = min(hubs.values(), key=lambda v: math.hypot(v[1][0] - bx, v[1][2] - (bz - 120)))
     w.connect(inside[1], apron[0], world.AI_SOLDIER)
+    # the cruiser's hangar deck: a row of hubs along the bay (reached by spawning or flying)
+    deck = []
+    for k, dx in enumerate((-70.0, -35.0, 0.0, 35.0, 70.0)):
+        name = "Deck%d" % k
+        w.hub(name, ship_point(dx, 0.0, -40.0), 14.0)
+        deck.append(name)
+    for a, b in zip(deck, deck[1:]):
+        w.connect(a, b, world.AI_SOLDIER)
 
 
 # ---------------------------------------------------------------- the mission script
@@ -439,17 +489,17 @@ end
 
 function ScriptInit()
 	ReadDataFile("ingame.lvl")
-	SetMaxFlyHeight(400)
-	SetMaxPlayerFlyHeight(400)
+	SetMaxFlyHeight(620)          -- above the cruiser (its deck at {ship_y:.0f} m)
+	SetMaxPlayerFlyHeight(620)
 	SetMemoryPoolSize("Music", 40)
 
 	ReadDataFile("sound\\\\hot.lvl;hot1gcw")
 	ReadDataFile("SIDE\\\\imp.lvl", "imp_inf_rifleman_snow", "imp_inf_rocketeer_snow", "imp_inf_engineer_snow",
 		"imp_inf_sniper_snow", "imp_inf_officer", "imp_inf_dark_trooper", "imp_hero_darthvader",
-		"imp_walk_atat", "imp_walk_atst")
+		"imp_walk_atat", "imp_walk_atst", "imp_fly_tiefighter")
 	ReadDataFile("SIDE\\\\all.lvl", "all_inf_rifleman_snow", "all_inf_rocketeer_snow", "all_inf_engineer_snow",
 		"all_inf_sniper_snow", "all_inf_officer_snow", "all_inf_wookiee_snow", "all_hero_luke_pilot",
-		"all_fly_snowspeeder", "all_walk_tauntaun")
+		"all_fly_snowspeeder", "all_walk_tauntaun", "all_fly_xwing")
 
 	SetupTeams{{
 		imp = {{ team = IMP, units = 40, reinforcements = 300,
@@ -468,7 +518,7 @@ function ScriptInit()
 	AddWalkerType(1, 3)     -- AT-STs: one pair of legs
 	AddWalkerType(2, 2)     -- AT-ATs: two pairs
 	SetMemoryPoolSize("EntityWalker", 6)
-	SetMemoryPoolSize("EntityFlyer", 6)
+	SetMemoryPoolSize("EntityFlyer", 12)
 	SetMemoryPoolSize("CommandWalker", 2)
 	SetMemoryPoolSize("Obstacle", 900)
 	SetMemoryPoolSize("PathNode", 1024)
@@ -490,8 +540,8 @@ end
 
 
 def mission_script(code):
-    posts = "\n".join('\tconquest:AddCommandPost(CommandPost:New{ name = "%s" })' % p[0] for p in POSTS)
-    return SCRIPT.format(code=code, posts=posts)
+    posts = "\n".join('\tconquest:AddCommandPost(CommandPost:New{ name = "%s" })' % p[0] for p in POSTS + SHIP_POSTS)
+    return SCRIPT.format(code=code, posts=posts, ship_y=SHIP_Y)
 
 
 # ---------------------------------------------------------------- output
@@ -540,6 +590,10 @@ def build(out_dir, code="HTH", modtools=None, stock_world=STOCK_WORLD):
         materials, mesh, collision = structure_model(fn, code.lower() + "_plating")
         for name, data in msh.prop_files("%s_%s" % (code.lower(), kind), materials, mesh, collision, foley).items():
             put(odf_dir if name.endswith(".odf") else msh_dir, name, data)
+    import gts
+    materials, mesh, collision = gts.ship_mesh(c + "_plating", c + "_glow")
+    for name, data in msh.prop_files(c + "_ship", materials, mesh, collision).items():
+        put(odf_dir if name.endswith(".odf") else msh_dir, name, data)
     for name, data in make_textures(code).items():
         put(msh_dir, name, data)
     put(script_dir, "%sg_con.lua" % code, mission_script(code))
@@ -572,6 +626,12 @@ def render(h, w, out_dir):
          "Hoth: the ion cannon", False),
         ("shot_landing.png", (120.0, 60.0, -1480.0), (-60.0, 50.0, -300.0),
          "Hoth: from the Imperial landing, the long march north", False),
+        ("shot_cruiser.png", (520.0, 160.0, -620.0), (0.0, SHIP_Y + 20.0, -1260.0),
+         "Hoth: the Imperial cruiser over the landing, its hangar open to the north", False),
+        ("shot_cruiser_below.png", (-160.0, 50.0, -1020.0), (0.0, SHIP_Y, -1260.0),
+         "Hoth: looking up at the cruiser from the landing", False),
+        ("shot_cruiser_hangar.png", (90.0, SHIP_Y + 25.0, -1000.0), ship_point(0.0, 10.0, -20.0),
+         "Hoth: flying in, the cruiser's hangar", False),
     ]
     return preview.render(h, w, out_dir, world_parts(h), views, grid=GRID, map_name="Hoth")
 

@@ -3,7 +3,7 @@
 | Folder | What it is |
 |---|---|
 | [`custommodes/`](custommodes/README.md) | Five new game modes, in one AddOn: **Payload**, **Rush**, **Horde**, **Search & Destroy** and **Infiltration**. They run on every stock map and on the generated maps, with on-screen text. |
-| [`mapgen/`](mapgen/README.md) | The map generator, and two maps: **Ground to Space** (a desert valley with a capital ship overhead) and **Hoth** (a 4 km frozen battlefield). |
+| [`mapgen/`](mapgen/README.md) | The map generator, and two maps: **Ground to Space** (a desert valley with a capital ship overhead) and **Hoth** (a 4 km frozen battlefield, with an Imperial cruiser over the Empire's landing). |
 | [`PLAYTEST.md`](PLAYTEST.md) | What to check first, mode by mode, with the quick-test build. |
 
 All of it is Lua, data and Python: nothing here changes `BattlefrontII.exe`, so it works with the

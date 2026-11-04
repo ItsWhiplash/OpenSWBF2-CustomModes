@@ -72,13 +72,15 @@ for _, code in ipairs({ "gtsc", "gtsg", "hthg" }) do
 		local last = r.stages[table.getn(r.stages)]
 		local total, s = 0
 		for s = 1, table.getn(r.stages) do total = total + table.getn(r.stages[s]) end
-		check(r.base[1] == "cp1" and total == table.getn(MapgenPosts[code]) - 1, "Rush: every post but the landing in a stage")
+		check(r.base[1] == "cp1" and total == table.getn(MapgenPosts[code]) - table.getn(r.base),
+			"Rush: every post but the attackers' base in a stage")
 		if map == "GTS" then
 			check(table.concat(last, ",") == "cp6,cp7" or table.concat(last, ",") == "cp7,cp6", "Rush on GTS ends on the ship")
 		else
 			local hasBase = false
 			for s = 1, table.getn(last) do hasBase = hasBase or last[s] == "cp9" end
 			check(hasBase, "Rush on Hoth ends at the base hangar")
+			check(table.concat(r.base, ",") == "cp1,cp10,cp11", "Rush on Hoth: the landing and the cruiser are the Empire's base")
 		end
 
 		local h = StartGenerated("horde", code)
@@ -89,6 +91,10 @@ for _, code in ipairs({ "gtsc", "gtsg", "hthg" }) do
 
 		local f = StartGenerated("inf", code)
 		check(table.getn(f.targetNames) == table.getn(f.targetSpots) and table.getn(f.targetNames) >= 4, "Infiltration: every target made")
+		if map ~= "GTS" then
+			check(Mock.entities["cp10"].team == 0 and Mock.entities["cp11"].team == 0 and Mock.entities["cp5"].team == f.garrisonTeam,
+				"Infiltration on Hoth: the cruiser's posts are out of play, the ground's are the garrison's")
+		end
 	end)
 end
 

@@ -129,5 +129,7 @@ PayloadMap("hthg", {
 	},
 	initialCPs = {
 		cp1 = "att",
+		cp10 = "att",
+		cp11 = "att",
 	},
 })

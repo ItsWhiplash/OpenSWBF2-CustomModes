@@ -6,6 +6,10 @@ InfiltrationMap("hthg", {
 	baseLvl = "..\\..\\AddOn\\HTH\\Data\\_lvl_pc\\mission.lvl",
 	insertion = "cp1",
 	extraction = "cp1",
+	idlePosts = {
+		"cp10",
+		"cp11",
+	},
 	targets = {
 		{
 			post = "cp5",

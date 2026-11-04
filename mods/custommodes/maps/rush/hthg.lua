@@ -4,4 +4,9 @@
 RushMap("hthg", {
 	base = "HTHg_con",
 	baseLvl = "..\\..\\AddOn\\HTH\\Data\\_lvl_pc\\mission.lvl",
+	attackerBase = {
+		"cp1",
+		"cp10",
+		"cp11",
+	},
 })

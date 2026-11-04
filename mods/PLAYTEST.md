@@ -93,7 +93,11 @@ When you're done, run `mods\install.bat` again for the normal build.
 
 - [ ] The base, the stock shield generator and ion cannon, and the turrets look right, and the walkers and
       speeders spawn.
-- [ ] Rush on Hoth plays as a push from the south up to the base hangar.
+- [ ] The Imperial cruiser hangs over the landing with its hangar facing north. Spawn at Cruiser
+      Hangar, take a TIE out, and fly back in. Then, as the Rebels, fly an X-wing from the base
+      into the hangar and capture it.
+- [ ] Rush on Hoth plays as a push from the south up to the base hangar (the cruiser stays the
+      Empire's).
 - [ ] Payload drives the cart up the middle, through the ridge pass and the trench.
 
 **Both:**

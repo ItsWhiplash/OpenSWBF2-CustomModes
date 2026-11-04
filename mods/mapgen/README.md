@@ -52,10 +52,11 @@ the rest:
 | Terrain | Rolling snowfields with drifts, rock and ice outcrops (some 20–40 m spires) for cover, a long ridge across the middle with a pass at the centre, and a frozen lake. Jagged mountains (ridged noise, up to about 540 m) ring the map and close in behind the base. The boundary is an oval about 3.4 × 3.1 km. |
 | Defences | A zig-zag trench line 3.5 m deep across the north, with crossings at the centre and both ends, and six gun bunkers behind it. Further back are a shield generator (a stepped dome with a mast) and an ion cannon (a ball turret with a raised barrel). |
 | The base | A long bunker set into the mountain foot, on a cleared terrace. Its 140 × 28 m hangar is open to the plain. |
-| Command posts | Nine: cp1 Imperial Landing (Empire), cp2 Frozen Outpost, cp3 Ice Lake, cp4 Ridge Pass, cp5 West Trench, cp6 East Trench, cp7 Shield Generator, cp8 Ion Cannon and cp9 Base Hangar (inside the hangar). With the landing as the attackers' base, the other eight split into Rush's 3, 3 and 2 stages, nearest first. |
-| Vehicles | Two AT-ATs and three AT-STs at the Imperial landing; two snowspeeders at the base, and tauntauns at the trenches. |
+| The cruiser | Ground to Space's capital ship, as an Imperial cruiser: it hangs over the Imperial landing with its deck 420 m up, turned so its lit hangar opens north, toward the battle. |
+| Command posts | Eleven. On the ground: cp1 Imperial Landing (Empire), cp2 Frozen Outpost, cp3 Ice Lake, cp4 Ridge Pass, cp5 West Trench, cp6 East Trench, cp7 Shield Generator, cp8 Ion Cannon and cp9 Base Hangar (inside the hangar). On the cruiser's deck: cp10 Cruiser Hangar and cp11 Cruiser Control (Empire). In Rush, the landing and the cruiser are the Empire's base, and the other eight split into 3, 3 and 2 stages, nearest first. |
+| Vehicles | Two AT-ATs and three AT-STs at the Imperial landing; two snowspeeders at the base, and tauntauns at the trenches. Fighters are the way up: TIE fighters in the cruiser's hangar and X-wings beside the base. Whoever holds a post gets their own side's fighter there, so Rebels who take the hangar fly X-wings out of it. |
 | Bots | A navigation graph of about 1,300 hubs and 2,500 links over the walkable plain, with hubs in the hangar joined to the terrace outside. |
-| Script | `HTHg_con.lua`: Conquest with the stock Hoth snow units, Vader and Luke, walkers (`AddWalkerType`), and `SetWorldExtents(2200)`. |
+| Script | `HTHg_con.lua`: Conquest with the stock Hoth snow units, Vader and Luke, walkers (`AddWalkerType`), TIE fighters and X-wings, `SetWorldExtents(2200)`, and fly heights up to 620 m. |
 
 The structures are generated models, like Ground to Space's ship:
 - `hth_base`: a bunker under a vaulted roof, with its blast doors drawn back, a lit hangar and a
@@ -139,8 +140,8 @@ that match the files. With `--luac` it also checks the mission scripts compile.
   the vehicle spawn's `ClassXxxATK`/`ClassXxxDEF` properties. These are from memory of the
   stock assets. The munge and the game's log will name any that don't exist, and they're all in
   one place in `gts.py`.
-- **Bots and the ship.** Ground bots have a navigation graph, but there are no flight paths, so
-  AI pilots may not find the hangar. Bots that spawn on the deck do have hubs there.
+- **Bots and the ships.** Ground bots have a navigation graph, but there are no flight paths, so
+  AI pilots may not find the hangars (on either map). Bots that spawn on a deck do have hubs there.
 - **Looks.** The stock looks are picked from the stock files' names and colours. If one is a poor
   fit, `--stock-world` picks another world. Our own models (the ship, the base and the bunkers)
   have one generated plating texture each, and simple glowing materials. The point lights

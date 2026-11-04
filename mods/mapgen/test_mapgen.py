@@ -186,8 +186,8 @@ def test_hoth(out, luac):
     lyr = open(os.path.join(world_dir, "HTH_conquest.lyr")).read()
     rgn = open(os.path.join(world_dir, "HTH_conquest.RGN")).read()
     pth = open(os.path.join(world_dir, "HTH_conquest.PTH")).read()
-    posts = re.findall(r'Object\("(cp\d)", "com_bldg_controlzone"', lyr)
-    check(posts == ["cp%d" % i for i in range(1, 10)], "Hoth: nine command posts")
+    posts = re.findall(r'Object\("(cp\d+)", "com_bldg_controlzone"', lyr)
+    check(posts == ["cp%d" % i for i in range(1, 12)], "Hoth: nine posts on the ground and two on the cruiser")
     check(all('Name("%s_capture")' % cp in rgn and 'Path("%s_spawn")' % cp in pth for cp in posts),
           "Hoth: every post has its regions and spawn path")
     check(t.length == 512 and t.grid_scale * t.length == 4096, "Hoth: 4 km of terrain")
@@ -203,8 +203,31 @@ def test_hoth(out, luac):
     for name, x, z, team, label in hoth.POSTS:
         y = hoth.FLOOR if name == "cp9" else hoth.height_at(h, x, z)
         check(20 < y < 120, "Hoth: %s on the plain (%.0f m)" % (name, y))
-    spawns = re.findall(r'ControlZone\("(cp\d)"\)', lyr)
-    check(len(spawns) == 9 and all(cp in posts for cp in spawns), "Hoth: vehicle spawns name real posts")
+    spawns = re.findall(r'ControlZone\("(cp\d+)"\)', lyr)
+    check(len(spawns) == 13 and all(cp in posts for cp in spawns), "Hoth: vehicle spawns name real posts")
+    # the cruiser: over the landing, turned so its hangar opens north, its posts and TIEs on the deck
+    wld = open(os.path.join(world_dir, "HTH.wld")).read()
+    ship = re.search(r'Object\("ship", "hth_ship", \d+\)\s*\{\s*ChildRotation\(([^)]*)\);\s*ChildPosition\(([^)]*)\);', wld)
+    check(ship is not None, "Hoth: the cruiser is placed")
+    if ship:
+        rot = [float(v) for v in ship.group(1).split(",")]
+        pos = [float(v) for v in ship.group(2).split(",")]
+        check(abs(rot[0]) < 1e-3 and abs(abs(rot[2]) - 1) < 1e-3, "Hoth: the cruiser is turned round (yaw 180)")
+        check(abs(pos[1] - hoth.SHIP_Y) < 0.01 and abs(pos[2] - hoth.SHIP_Z) < 0.01,
+              "Hoth: at its height, over the landing")
+    landing = hoth.POSTS[0]
+    check(abs(hoth.SHIP_Z - landing[2]) < 200 and hoth.SHIP_Y - hoth.height_at(h, 0, hoth.SHIP_Z) > 300,
+          "Hoth: the cruiser hangs high over the Imperial landing")
+    check(hoth.ship_point(0, 0, -70)[2] > hoth.SHIP_Z, "Hoth: the hangar's open side faces north, to the battle")
+    for name, dx, dz, team, label in hoth.SHIP_POSTS:
+        check(team == 1 and abs(dx) < 90 and -70 < dz < 20, "Hoth: %s is the Empire's, inside the hangar" % name)
+    pln = open(os.path.join(world_dir, "HTH.PLN")).read()
+    check(all('"Deck%d"' % k in pln for k in range(5)), "Hoth: the bots have hubs on the cruiser's deck")
+    script = open(os.path.join(root, "Common", "scripts", "HTH", "HTHg_con.lua")).read()
+    check('"cp11"' in script and '"imp_fly_tiefighter"' in script and '"all_fly_xwing"' in script,
+          "Hoth: the script has the cruiser's posts and both sides' fighters")
+    fly = int(re.search(r"SetMaxFlyHeight\((\d+)\)", script).group(1))
+    check(fly > hoth.SHIP_Y + 160, "Hoth: fighters can fly above the cruiser (%d m)" % fly)
     pln = open(os.path.join(world_dir, "HTH.PLN")).read()
     hubs = set(re.findall(r'Hub\("([^"]+)"\)', pln))
     links = re.findall(r'Start\("([^"]+)"\);\s*End\("([^"]+)"\)', pln)

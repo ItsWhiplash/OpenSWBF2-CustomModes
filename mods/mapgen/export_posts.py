@@ -16,6 +16,7 @@ def main():
     gpost += [(n, gts.SHIP_X + dx, gts.SHIP_Y, gts.SHIP_Z + dz, t) for n, dx, dz, t, label in gts.SHIP_POSTS]
     hh = hoth.make_heights()
     hpost = [(n, x, hoth.FLOOR if n == "cp9" else hoth.height_at(hh, x, z), z, t) for n, x, z, t, label in hoth.POSTS]
+    hpost += [(n,) + hoth.ship_point(dx, 0.0, dz) + (t,) for n, dx, dz, t, label in hoth.SHIP_POSTS]
     for code, posts in (("gtsc", gpost), ("gtsg", gpost), ("hthg", hpost)):
         out.append("\t%s = {" % code)
         for n, x, y, z, t in posts:

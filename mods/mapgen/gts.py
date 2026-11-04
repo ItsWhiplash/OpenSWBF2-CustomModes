@@ -281,9 +281,9 @@ def ship_parts():
     return parts
 
 
-def ship_mesh():
-    hull = msh.Material("hull", texture="gts_hull")
-    lights = msh.Material("lights", texture="gts_glow", glow=True)
+def ship_mesh(hull_texture="gts_hull", glow_texture="gts_glow"):
+    hull = msh.Material("hull", texture=hull_texture)
+    lights = msh.Material("lights", texture=glow_texture, glow=True)
     mesh, collision = msh.Mesh(), msh.Mesh()
     for name, polys, material, colour, glows, collides in ship_parts():
         mesh.polys(material, polys, uv_scale=1 / 32.0)

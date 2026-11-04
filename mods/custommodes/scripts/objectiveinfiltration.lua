@@ -31,6 +31,7 @@ ObjectiveInfiltration = Objective:New
 	-- posts and targets: worked out unless given
 	insertion = nil,              -- the squad's post (default: its post farthest from the enemy)
 	extraction = nil,             -- where to get out (default: the insertion post)
+	idlePosts = nil,              -- { "cp10", ... }: posts out of play (such as a ship's), nobody's
 	targets = nil,                -- { { x, y, z }, ... } or { { post = "cp3" }, ... }
 	targetCount = 5,              -- for the automatic layout: one beside each of the farthest posts
 	targetOffset = 10,            -- metres from a post a target is parked
@@ -362,6 +363,7 @@ function ObjectiveInfiltration:Start()
 		AICanCaptureCP(names[i], self.garrisonTeam, false)
 		SetObjectTeam(names[i], self.garrisonTeam)
 	end
+	for i = 1, table.getn(self.idlePosts or {}) do SetObjectTeam(self.idlePosts[i], 0) end
 	SetObjectTeam(self.insertion, self.squadTeam)
 	if self.extraction ~= self.insertion then SetObjectTeam(self.extraction, 0) end
 

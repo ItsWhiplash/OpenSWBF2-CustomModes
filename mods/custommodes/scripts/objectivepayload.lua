@@ -231,6 +231,7 @@ function ObjectivePayload:StepClock(dt, timeUp)
 			self.overtime = true
 			self.overtimeIdle = 0
 			Log("overtime")
+			CustomMode_Say("pay.overtime")
 			return false
 		end
 		return true
@@ -339,6 +340,8 @@ end
 function ObjectivePayload:OnCheckpoint(cp)
 	local def = cp.def
 	Log(string.format("checkpoint at %.0f m", cp.distance))
+	CustomMode_Say("pay.checkpoint.att", self.teamATT)
+	CustomMode_Say("pay.checkpoint.def", self.teamDEF)
 	local i
 	for i = 1, table.getn(def.giveCPs or {}) do
 		self:SetCP(def.giveCPs[i], self.teamATT)
@@ -366,7 +369,14 @@ function ObjectivePayload:Tick()
 	if dt > 0.5 then dt = 0.5 end
 
 	local att, def = self:CountNear()
+	local before = self.s
 	local result, reached = self:Step(dt, att, def)
+	if self.s < before and not self.rolling then
+		self.rolling = true
+		CustomMode_Say("pay.rollback")
+	elseif self.s >= before then
+		self.rolling = false
+	end
 	if reached then
 		local i
 		for i = 1, table.getn(reached) do
@@ -448,6 +458,8 @@ function ObjectivePayload:Start()
 	end
 
 	self:SpawnPayload()
+	CustomMode_Say("pay.start.att", self.teamATT)
+	CustomMode_Say("pay.start.def", self.teamDEF)
 	MapAddEntityMarker(self.payloadName, "hud_objective_icon_circle", 4.0, self.teamATT, "YELLOW", true, false, true)
 	MapAddEntityMarker(self.payloadName, "hud_objective_icon_circle", 4.0, self.teamDEF, "YELLOW", true, false, true)
 
@@ -511,6 +523,7 @@ function ObjectivePayload:StartRecorder()
 		AllowAISpawn(self.teamATT, false)
 		AllowAISpawn(self.teamDEF, false)
 	end
+	CustomMode_Say("pay.recording")
 	Log("RECORDING. Walk the payload's route from start to finish; a point is logged every " ..
 		self.recordSpacing .. " m. Then quit and run extract_track.py on the log.")
 	local cps = self:AllCommandPosts()

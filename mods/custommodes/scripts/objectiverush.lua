@@ -288,6 +288,8 @@ function ObjectiveRush:Poll()
 					self.rewarded[post] = true
 					AddReinforcements(self.teamATT, self.ticketsPerCapture)
 					Log("attackers took " .. post .. " (+" .. self.ticketsPerCapture .. " lives)")
+					CustomMode_Say("rush.taken.att", self.teamATT)
+					CustomMode_Say("rush.taken.def", self.teamDEF)
 				end
 			end
 		end
@@ -299,6 +301,10 @@ function ObjectiveRush:Poll()
 		local fallen
 		for fallen = self.current, current - 1 do
 			Log("stage " .. fallen .. " fell")
+			if fallen < table.getn(self.stages) and fallen <= 9 then
+				CustomMode_Say("rush.stage." .. fallen .. ".att", self.teamATT)
+				CustomMode_Say("rush.stage." .. fallen .. ".def", self.teamDEF)
+			end
 			if self.stageClearTickets > 0 then
 				AddReinforcements(self.teamATT, self.stageClearTickets)
 			end
@@ -307,6 +313,10 @@ function ObjectiveRush:Poll()
 			end
 		end
 		self.current = current
+		if current == table.getn(self.stages) and current > 1 then
+			CustomMode_Say("rush.final.att", self.teamATT)
+			CustomMode_Say("rush.final.def", self.teamDEF)
+		end
 	end
 
 	if current > table.getn(self.stages) then
@@ -384,6 +394,8 @@ function ObjectiveRush:Start()
 		end
 	end
 
+	CustomMode_Say("rush.start.att", self.teamATT)
+	CustomMode_Say("rush.start.def", self.teamDEF)
 	self:Poll()
 
 	local timer = CreateTimer("rushPoll")

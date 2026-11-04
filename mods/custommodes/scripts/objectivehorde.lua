@@ -241,6 +241,7 @@ function ObjectiveHorde:Buy(pad, item)
 	self.sold[pad] = true
 	MapRemoveEntityMarker(pad)
 	Log("bought " .. item.id .. " for " .. item.price)
+	CustomMode_Say("horde.bought." .. item.id, self.playersTeam)
 	if item.kind == "bonus" then
 		self:ApplyBonus(item.bonus)
 	elseif item.kind == "hero" then
@@ -275,11 +276,20 @@ function ObjectiveHorde:ShopTick(dt)
 			if someone then
 				if not self.padTime[pad] then
 					self.padTime[pad] = 0
-					if item.message then ShowMessageText(item.message, self.playersTeam) end
+					if item.message then
+						ShowMessageText(item.message, self.playersTeam)
+					else
+						CustomMode_Say("horde.item." .. item.id, self.playersTeam)
+					end
 				end
+				local was = self.padTime[pad]
 				self.padTime[pad] = self.padTime[pad] + dt
-				if self.padTime[pad] >= self.buyHoldTime and self.credits >= item.price then
-					self:Buy(pad, item)
+				if self.padTime[pad] >= self.buyHoldTime then
+					if self.credits >= item.price then
+						self:Buy(pad, item)
+					elseif was < self.buyHoldTime then
+						CustomMode_Say("horde.poor", self.playersTeam)
+					end
 				end
 			else
 				self.padTime[pad] = nil
@@ -319,6 +329,8 @@ function ObjectiveHorde:StartBreak(seconds)
 		MapAddEntityMarker(pad, "hud_objective_icon_circle", 3.0, self.playersTeam, "YELLOW", true, false, true)
 	end
 	Log("break before wave " .. (self.wave + 1))
+	if self.wave > 0 then CustomMode_Say("horde.cleared." .. math.min(self.wave, 99)) end
+	CustomMode_Say("horde.next." .. math.min(self.wave + 1, 99))
 end
 
 function ObjectiveHorde:StartWave()
@@ -339,6 +351,7 @@ function ObjectiveHorde:StartWave()
 		UnlockHeroForTeam(self.hordeTeam)
 	end
 	Log("wave " .. self.wave .. ": " .. size .. " enemies" .. (self:IsBossWave(self.wave) and ", boss" or ""))
+	CustomMode_Say(self:IsBossWave(self.wave) and "horde.boss" or ("horde.wave." .. math.min(self.wave, 99)))
 end
 
 function ObjectiveHorde:CountNearStand()
@@ -402,6 +415,7 @@ function ObjectiveHorde:Poll()
 	end
 	local defenders, attackers = self:CountNearStand()
 	if attackers > 0 and defenders == 0 then
+		if self.overrun == 0 then CustomMode_Say("horde.overrun", self.playersTeam) end
 		self.overrun = self.overrun + dt
 		if self.overrun >= self.overrunTime then return self:Lose("overrun") end
 	else
@@ -473,6 +487,7 @@ function ObjectiveHorde:Start()
 		if killer and GetCharacterTeam(killer) == self.playersTeam then
 			local boss = self.bossClass and self.lastBoss == character
 			self:SetCredits(self.credits + (boss and self.creditsPerBoss or self.creditsPerKill))
+			if boss then CustomMode_Say("horde.bossdown") end
 		end
 	end)
 	OnCharacterSpawn(function(character)
@@ -495,6 +510,7 @@ function ObjectiveHorde:Start()
 
 	self.clock = CreateTimer("hordeClock")
 	OnTimerElapse(function(t) self.breakOver = true end, self.clock)
+	CustomMode_Say("horde.start", self.playersTeam)
 	self:StartBreak(self.firstBreak)
 
 	local poll = CreateTimer("hordePoll")

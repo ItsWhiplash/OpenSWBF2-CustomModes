@@ -20,6 +20,14 @@ function CustomMode_IsAuthority()
 	return true
 end
 
+-- a message on every player's screen, or one team's: custommodes.<key> from text.py. Only the
+-- host sends (the engine passes it on to every player); single player is its own host.
+function CustomMode_Say(key, team)
+	if CustomMode_IsAuthority() then
+		ShowMessageText("custommodes." .. key, team)
+	end
+end
+
 -- settings the loader uses itself; the rest go to the objective
 local LoaderKeys = { base = 1, extraData = 1, memoryPools = 1, attackers = 1, objectiveScript = 1, objectiveClass = 1 }
 
@@ -182,11 +190,10 @@ function PayloadMap(code, cfg)
 end
 
 -- Horde's shop for an era: Galactic Conquest's enhancements, the team's hero, and two vehicles.
--- Bonus items show the game's own name for them when someone steps on the pad.
+-- Stepping on a pad shows custommodes.horde.item.<id> (name and price, from text.py).
 function HordeShop(era)
 	local function Bonus(bonus, tech, price)
-		return { id = bonus, kind = "bonus", bonus = bonus, price = price,
-			message = "ifs.freeform.purchase.tech." .. tech .. ".enhancement" }
+		return { id = bonus, kind = "bonus", bonus = bonus, price = price }
 	end
 	local vehicles = HordeEraVehicles[era] or HordeEraVehicles.g
 	return {

@@ -77,6 +77,8 @@ test("infiltration: alarms escalate", function()
 	Blow(1)
 	Run(1)
 	check(inf.level == 1 and inf.alarmed, "a target blowing trips the alarm")
+	check(Mock.Count("ShowMessageText", "custommodes.inf.alarm") == 1 and
+		Mock.Count("ShowMessageText", "custommodes.inf.left.4") == 1, "the alarm and targets left announced")
 	check(table.getn(Alive(2)) == 14 and Mock.aggression[2] == 1 and Mock.vision == 1, "14 guards, aggressive, sharp-eyed")
 	check(Mock.points[1] == 1 and Mock.points[2] == 1, "score: targets down, alarm level")
 	Run(61)

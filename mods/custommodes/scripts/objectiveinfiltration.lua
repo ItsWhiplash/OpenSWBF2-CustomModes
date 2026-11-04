@@ -212,6 +212,7 @@ function ObjectiveInfiltration:Alarm(why)
 	self.clockUp = false
 	SetTeamPoints(self.garrisonTeam, self.level)
 	self:SetPosture(true)
+	CustomMode_Say("inf.alarm")
 	Log("ALARM " .. self.level .. " (" .. why .. "): " .. self:GarrisonSize(self.level, true) .. " guards")
 end
 
@@ -219,6 +220,7 @@ function ObjectiveInfiltration:Calm()
 	self.alarmed = false
 	ShowTimer(nil)
 	self:SetPosture(false)
+	CustomMode_Say("inf.calm")
 	Log("the garrison stands down (" .. self:GarrisonSize(self.level, false) .. " guards)")
 end
 
@@ -247,6 +249,7 @@ function ObjectiveInfiltration:Poll()
 				AllowAISpawn(self.squadTeam, false)
 				ShowTimer(nil)
 				Log("the squad is in")
+				CustomMode_Say("inf.in", self.squadTeam)
 			else
 				SetTimerValue(self.clock, 5)              -- nobody in yet: wait
 				StartTimer(self.clock)
@@ -277,10 +280,13 @@ function ObjectiveInfiltration:Poll()
 			self.destroyedCount = self.destroyedCount + 1
 			SetTeamPoints(self.squadTeam, self.destroyedCount)
 			Log("target destroyed (" .. self.destroyedCount .. "/" .. table.getn(self.targetNames) .. ")")
+			local left = table.getn(self.targetNames) - self.destroyedCount
+			if left > 0 then CustomMode_Say("inf.left." .. math.min(left, 20), self.squadTeam) end
 			if self.destroyedCount == table.getn(self.targetNames) then
 				self.extractOpen = true
 				MapAddEntityMarker(self.extraction, "hud_objective_icon_circle", 4.0, self.squadTeam, "YELLOW", true, true, true)
 				Log("all targets down: get to " .. self.extraction)
+				CustomMode_Say("inf.extract", self.squadTeam)
 			end
 			self:Alarm("a target blew")
 		end
@@ -310,6 +316,7 @@ function ObjectiveInfiltration:Poll()
 			end
 		end
 		if there then
+			if self.extracting == 0 then CustomMode_Say("inf.extracting", self.squadTeam) end
 			self.extracting = self.extracting + dt
 			if self.extracting >= self.extractTime then
 				Log("extracted")
@@ -400,6 +407,7 @@ function ObjectiveInfiltration:Start()
 	StartTimer(self.clock)
 	ShowTimer(self.clock)
 	self:SetPosture(false)
+	CustomMode_Say("inf.insert", self.squadTeam)
 
 	local poll = CreateTimer("infilPoll")
 	SetTimerValue(poll, self.pollInterval)

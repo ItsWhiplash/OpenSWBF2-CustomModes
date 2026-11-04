@@ -88,6 +88,7 @@ test("s&d: plant and detonate", function()
 	check(not s.planted, "stepping off resets the plant")
 	Run(3, Hold(human, "cp4"))
 	check(s.planted == "cp4", "planted after 5 s on the site")
+	check(Mock.Count("ShowMessageText", "custommodes.snd.planted.a") == 1, "announced at site A")
 	Scatter()
 	KillTeam(1)
 	Run(1)
@@ -115,6 +116,15 @@ test("s&d: defuse", function()
 	check(s.state == "live", "stepping off a defuse resets it")
 	Run(8, Hold(d, "cp3"))
 	check(s.wins[2] == 1, "defused: the defenders' round")
+	check(Mock.Count("ShowMessageText", "custommodes.snd.planted.b") == 1 and
+		Mock.Count("ShowMessageText", "custommodes.snd.defused") == 1, "site B, then the defuse, announced")
+	local won, lost, i = nil, nil
+	for i = 1, table.getn(Mock.calls) do
+		local m = Mock.calls[i]
+		if m.name == "ShowMessageText" and m.a1 == "custommodes.snd.won" then won = m.a2 end
+		if m.name == "ShowMessageText" and m.a1 == "custommodes.snd.lost" then lost = m.a2 end
+	end
+	check(won == 2 and lost == 1, "round won and lost go to the right teams")
 end)
 
 test("s&d: elimination and time", function()

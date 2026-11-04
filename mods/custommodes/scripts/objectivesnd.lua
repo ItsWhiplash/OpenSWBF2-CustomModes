@@ -171,6 +171,7 @@ function ObjectiveSnD:StartRound()
 	if self.halftime > 0 and self.round == self.halftime + 1 then
 		self.att, self.def = self.def, self.att
 		Log("halftime: team " .. self.att .. " attacks now")
+		CustomMode_Say("snd.halftime")
 	end
 	self.state = "setup"
 	self.planted, self.progress = nil, 0
@@ -187,6 +188,8 @@ function ObjectiveSnD:StartRound()
 	self:Goals(self.sites)
 	self:Clock(self.setupTime)
 	Log("round " .. self.round .. ": team " .. self.att .. " attacks " .. table.concat(self.sites, " and "))
+	CustomMode_Say("snd.round.att", self.att)
+	CustomMode_Say("snd.round.def", self.def)
 end
 
 function ObjectiveSnD:GoLive()
@@ -197,6 +200,7 @@ function ObjectiveSnD:GoLive()
 	AllowAISpawn(1, false)
 	AllowAISpawn(2, false)
 	self:Clock(self.roundTime)
+	CustomMode_Say("snd.live")
 end
 
 function ObjectiveSnD:EndRound(winner, why)
@@ -206,8 +210,13 @@ function ObjectiveSnD:EndRound(winner, why)
 	Log("round " .. self.round .. " to team " .. winner .. " (" .. why .. "), " .. self.wins[1] .. "-" .. self.wins[2])
 	StopTimer(self.clock)
 	ShowTimer(nil)
+	CustomMode_Say("snd.won", winner)
+	CustomMode_Say("snd.lost", 3 - winner)
 	if self.wins[winner] >= self.roundsToWin then
 		return self:Complete(winner)
+	end
+	if self.wins[1] == self.roundsToWin - 1 or self.wins[2] == self.roundsToWin - 1 then
+		CustomMode_Say("snd.matchpoint")
 	end
 	self.overFor = 0
 end
@@ -273,6 +282,7 @@ function ObjectiveSnD:Poll()
 			self:Markers(site)
 			self:Goals({ site })
 			Log("bomb planted at " .. site)
+			CustomMode_Say("snd.planted." .. (site == self.sites[2] and "b" or "a"))
 		end
 		return
 	end
@@ -280,12 +290,16 @@ function ObjectiveSnD:Poll()
 	-- the bomb is armed: the attackers win if it goes off or no defender is left to defuse
 	if self.clockUp then
 		if self.destroySites then KillObject(self.planted) end
+		CustomMode_Say("snd.detonated")
 		return self:EndRound(self.att, "the bomb went off")
 	end
 	if defAlive == 0 then return self:EndRound(self.att, "defenders eliminated") end
 	if self:CountNear(self.def, self.planted) > 0 then
 		self.progress = self.progress + dt
-		if self.progress >= self.defuseTime then return self:EndRound(self.def, "defused") end
+		if self.progress >= self.defuseTime then
+			CustomMode_Say("snd.defused")
+			return self:EndRound(self.def, "defused")
+		end
 	else
 		self.progress = 0
 	end

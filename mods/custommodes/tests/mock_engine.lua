@@ -350,7 +350,12 @@ end
 function MapAddEntityMarker(e, ...) Mock.Record("MapAddEntityMarker", e, arg[3]) end
 function MapRemoveEntityMarker(e) Mock.Record("MapRemoveEntityMarker", e) end
 function MapHideCommandPosts() end
-function ShowMessageText(k, t) Mock.Record("ShowMessageText", k, t) end
+-- every key ever shown, across all tests (summary.lua checks them against text.py)
+MockSaid = {}
+function ShowMessageText(k, t)
+	Mock.Record("ShowMessageText", k, t)
+	MockSaid[k] = (MockSaid[k] or 0) + 1
+end
 function SetFlagGameplayType(t) end
 function AddMissionObjective() end
 function ActivateObjective() end

@@ -68,6 +68,36 @@ The modes appear in the map and mode lists. On a server, you can add them to the
 name, for example `BattlefrontII.exe -dedicated tat2g_pay nab2c_rush`. Use `--modes rush` or
 `--only tat2g,nab2c` to build only some modes or maps.
 
+## On-screen text
+
+Every mode announces what's happening in the middle of the screen, for example:
+
+- **Payload:** "Checkpoint reached!", "OVERTIME!"
+- **Rush:** "Post captured! Lives added.", "Final stage!"
+- **Horde:** "Wave 6!", "BOSS WAVE!", and every shop pad's item and price.
+- **Search & Destroy:** "Bomb planted at site A!", "Round won!", "Match point!"
+- **Infiltration:** "ALARM! Reinforcements inbound!", "Target destroyed: 2 left."
+
+Messages for one side go only to that side. The game shows text only by key, so the text lives
+in `text.py`, with a key per number where a message has one (wave 1 to 99, for example). The
+build writes it into `mission.lvl`, in English, under every language the game picks between, so
+nobody sees `[NULL]`. Text never travels over the network, only its key, and every player has
+the AddOn. The tests check that every message a mode shows has text.
+
+**The game's own text, and `--gamedata`.** For an AddOn's missions, the engine skips the first
+block of English text in the game's own `core.lvl`, then loads the AddOn's own `core.lvl` in its
+place; mod-tools mods ship one. Depending on how your copy's `core.lvl` is laid out, that could
+leave stock text, such as class names or HUD labels, showing `[NULL]` in these missions. If it
+does, rebuild with your game folder:
+
+```bash
+python mods/custommodes/build.py --gamedata "C:\Program Files (x86)\Steam\steamapps\common\Star Wars Battlefront II Classic\GameData"
+```
+
+That copies your game's text into the AddOn's `core.lvl`, followed by ours. The copy is made
+from your own game at build time and isn't in the repository. It's fine to share with players
+who own the game, such as through your server.
+
 ## Payload
 
 The attackers escort a vehicle along a fixed track to the end of the map, and the defenders try
@@ -133,7 +163,7 @@ PayloadMap("tat2g", {
 | Setting | Default | |
 |---|---|---|
 | `track` | none | Points `{ x, y, z }` from start to end. Fewer than two points records a track instead. |
-| `checkpoints` | none | `{ at = fraction }` or `{ point = n }`, with optional `giveCPs`, `takeCPs`, `bonusTime` and `message` (a localization key). |
+| `checkpoints` | none | `{ at = fraction }` or `{ point = n }`, with optional `giveCPs`, `takeCPs`, `bonusTime` and `message` (a text key shown on top of the usual checkpoint message, such as one you add to `text.py`). |
 | `initialCPs` | none | Command post owners at the start: `"att"` or `"def"`. |
 | `disableCapture` | `true` | Command posts can't be captured, so spawns move only at checkpoints. |
 | `pushRadius` / `pushHeight` | `8` / `5` | Metres (horizontal / vertical) within which a soldier counts as near the payload. |
@@ -237,8 +267,8 @@ break, and the offers change every break.
 
 The first six are Galactic Conquest's enhancements, which the engine runs one per team at a
 time: buying one replaces the one you have, and the one you have isn't offered. Stepping on a pad
-shows the enhancement's name, using the game's own Galactic Conquest text. The hero and vehicle
-pads don't show a name.
+shows its item and price, and buying it, or standing there without enough credits, says so. The
+prices on screen come from `text.py`, so if you change a price in `shop`, change its text too.
 
 Every map works straight away. The last stand is the players' post farthest from the enemy's.
 The horde spawns at the two posts farthest from it (one on a three-post map). Every other post
@@ -440,8 +470,6 @@ source and the mock engine, not in a real match.
   settings: OpenSWBF2's AI heroes option, or single player's hero rules.
 - **Vehicles.** `imp_hover_speederbike` and `rep_hover_barcspeeder`, like Payload's tanks, need
   to exist in the stock sides. Change `shop` if one doesn't.
-- **Text.** Pads use the game's Galactic Conquest text for names, so they only show if those
-  strings are loaded in a battle.
 
 **Search & Destroy:**
 
@@ -462,5 +490,8 @@ source and the mock engine, not in a real match.
 
 **All modes:**
 
-- **Messages.** The game shows only localized text, so there are no custom on-screen messages.
-  Progress shows in the score, the timer and the HUD markers.
+- **On-screen text.** Our text loads from `mission.lvl`, which the engine reads with any level
+  file. The format follows the engine's reader, and the tests read it back the same way. Seeing
+  it on screen is the check.
+- **The game's own text in these missions.** See [On-screen text](#on-screen-text). If class
+  names or menus show `[NULL]`, rebuild with `--gamedata`.

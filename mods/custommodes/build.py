@@ -94,6 +94,49 @@ def check_syntax(luac, sources):
                 sys.exit("syntax error in %s:\n%s" % (name, result.stderr or result.stdout))
 
 
+# the languages the game picks between (RedLocalizeDB::PickLanguage); our text is English in all
+LANGUAGES = ("english", "uk_english", "french", "german", "italian", "spanish", "japanese", "polish", "thai")
+
+
+def localize_body(texts):
+    """A Locl BODY: entries of (int hash, ushort length, UTF-16 text), 4-byte aligned, then an
+    empty entry (RedLocalizeDB::ReadMasterLocalizeFile stops at a zero length)."""
+    out = b""
+    for key in sorted(texts):
+        data = texts[key].encode("utf-16-le") + b"\0\0"
+        size = 6 + len(data)
+        size += -size % 4
+        out += struct.pack("<IH", pbl_hash(key), size) + data + b"\0" * (size - 6 - len(data))
+    return out + b"\0" * 8
+
+
+def localize_chunks(texts):
+    body = localize_body(texts)
+    return b"".join(chunk("Locl", chunk("NAME", lang.encode("ascii") + b"\0") + chunk("BODY", body))
+                    for lang in LANGUAGES)
+
+
+def base_localize(game_data):
+    """The Locl chunks of the game's own core.lvl, so this addon's core.lvl carries the game's text
+    too (the engine skips the first English block of the game's core.lvl for an addon mission)."""
+    path = os.path.join(game_data, "data", "_lvl_pc", "core.lvl")
+    data = read(path)
+    if data[:4] != b"ucfb":
+        sys.exit("not a level file: " + path)
+    end = 8 + struct.unpack("<I", data[4:8])[0]
+    pos, found = 8, []
+    while pos + 8 <= end:
+        tag = data[pos:pos + 4]
+        size = struct.unpack("<I", data[pos + 4:pos + 8])[0]
+        if tag == b"Locl":
+            found.append(data[pos:pos + 8 + size] + b"\0" * (-(8 + size) % 4))
+        pos += 8 + size
+        pos += -pos % 4
+    if not found:
+        sys.exit("no text found in " + path)
+    return b"".join(found)
+
+
 def mission_source(code, mode):
     return b'ScriptCB_DoFile("custommode_mission")\n' + read(map_path(code, mode))
 
@@ -104,7 +147,20 @@ def main():
     parser.add_argument("--luac", help="a Lua 5.0 compiler, to check syntax first")
     parser.add_argument("--only", help="comma-separated map codes, such as tat2g,nab2c")
     parser.add_argument("--modes", help="comma-separated modes, such as pay,rush (default: all)")
+    parser.add_argument("--gamedata", help="your game's GameData folder: also copies its text into the "
+                        "addon's core.lvl (see README.md, On-screen text)")
+    parser.add_argument("--dump-keys", action="store_true", help="print the text keys as Lua, for the tests")
     args = parser.parse_args()
+
+    sys.path.insert(0, HERE)
+    import text
+    texts = text.table()
+    if args.dump_keys:
+        print("CustomModeTextKeys = {")
+        for key in sorted(texts):
+            print('\t["%s"] = true,' % key)
+        print("}")
+        return
 
     found = missions(args.only, args.modes and set(m.strip() for m in args.modes.split(",")))
     if not found:
@@ -122,7 +178,7 @@ def main():
     # chunk holding one sub-level per mission, keyed by the hash of the mission's name
     top = b"".join(script(n, s) for n, s in shared)
     subs = b"".join(chunk(struct.pack("<I", pbl_hash(n)), script(n, s)) for n, s in per_mission)
-    mission_lvl = chunk("ucfb", top + chunk("lvl_", subs))
+    mission_lvl = chunk("ucfb", localize_chunks(texts) + top + chunk("lvl_", subs))
     addme_script = chunk("ucfb", script("addme", addme))
 
     root = os.path.join(args.out, FOLDER)
@@ -132,6 +188,13 @@ def main():
         f.write(addme_script)
     with open(os.path.join(lvl_dir, "mission.lvl"), "wb") as f:
         f.write(mission_lvl)
+    core = os.path.join(lvl_dir, "core.lvl")
+    if args.gamedata:
+        with open(core, "wb") as f:
+            f.write(chunk("ucfb", base_localize(args.gamedata) + localize_chunks(texts)))
+        print("core.lvl: your game's text plus ours (don't share this file outside your own group)")
+    elif os.path.exists(core):
+        os.remove(core)
 
     print("built %s with %d missions" % (root, len(found)))
     for mode in sorted(set(m for _, m in found)):

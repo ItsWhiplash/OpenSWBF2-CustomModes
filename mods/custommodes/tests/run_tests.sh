@@ -17,4 +17,6 @@ if [ ! -x "$BIN/luac" ]; then
 fi
 python3 mods/custommodes/build.py --luac "$BIN/luac" --out "$BIN/out" > /dev/null
 echo "syntax: ok"
-"$BIN/lua" mods/custommodes/tests/mock_engine.lua mods/custommodes/tests/harness.lua mods/custommodes/tests/test_payload.lua mods/custommodes/tests/test_rush.lua mods/custommodes/tests/test_horde.lua mods/custommodes/tests/test_snd.lua mods/custommodes/tests/test_inf.lua mods/custommodes/tests/summary.lua
+python3 mods/custommodes/tests/test_build.py "$BIN/out"
+python3 mods/custommodes/build.py --dump-keys > "$BIN/text_keys.lua"
+"$BIN/lua" mods/custommodes/tests/mock_engine.lua mods/custommodes/tests/harness.lua mods/custommodes/tests/test_payload.lua mods/custommodes/tests/test_rush.lua mods/custommodes/tests/test_horde.lua mods/custommodes/tests/test_snd.lua mods/custommodes/tests/test_inf.lua "$BIN/text_keys.lua" mods/custommodes/tests/summary.lua

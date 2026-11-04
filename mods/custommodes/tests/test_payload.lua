@@ -97,6 +97,7 @@ test("checkpoints and delivery", function()
 	local before = GetTimerValue(p.clock)
 	Mock.Advance(25, 0.05, Escort({ a }))          -- past 50 m
 	check(Mock.entities["cp2"].team == 1, "cp2 handed to the attackers")
+	check(Mock.Count("ShowMessageText", "custommodes.pay.checkpoint.att") == 1, "checkpoint announced")
 	check(GetTimerValue(p.clock) > before, "checkpoint added time")
 	check(Mock.points[2] == 0, "defenders' score: no checkpoints left")
 	Mock.Advance(40, 0.05, Escort({ a }))

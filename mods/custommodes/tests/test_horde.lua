@@ -121,6 +121,9 @@ test("horde: a wave", function()
 	check(Mock.Char(ally).unit.alive, "and the dead come back")
 	Run(21)
 	check(h.wave == 2 and Mock.reinforcements[2] == 14, "wave 2 has 14")
+	check(Mock.Count("ShowMessageText", "custommodes.horde.wave.1") == 1 and
+		Mock.Count("ShowMessageText", "custommodes.horde.cleared.1") == 1 and
+		Mock.Count("ShowMessageText", "custommodes.horde.wave.2") == 1, "waves are announced")
 end)
 
 test("horde: tougher enemies and the boss", function()
@@ -165,10 +168,11 @@ test("horde: the shop", function()
 	end
 	StandOn(pad)
 	Run(1)
-	check(Mock.Count("ShowMessageText", item.message) == 1, "stepping on a pad shows what it sells")
+	check(Mock.Count("ShowMessageText", "custommodes.horde.item." .. item.id) == 1, "stepping on a pad shows what it sells")
 	check(h.credits == 400, "not bought yet")
 	Run(1.5)
 	check(h.credits == 400 - item.price, "bought after standing on it")
+	check(Mock.Count("ShowMessageText", "custommodes.horde.bought." .. item.id) == 1, "and says so")
 	check(Mock.bonus[1] == "team_bonus_" .. item.bonus, "the enhancement is on")
 	check(HordeDecodeBonus(GetBleedRate(1)) == HordeBonusIndex(item.bonus), "and sent to everyone")
 	Run(3)

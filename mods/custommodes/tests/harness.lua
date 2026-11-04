@@ -39,6 +39,7 @@ function StartMission(cfg, mapFn, posts, conquestPosts)
 	Mock.files["objectivepayload"] = MOD .. "objectivepayload.lua"
 	Mock.files["objectiverush"] = MOD .. "objectiverush.lua"
 	Mock.files["objectivehorde"] = MOD .. "objectivehorde.lua"
+	Mock.files["objectivesnd"] = MOD .. "objectivesnd.lua"
 	Mock.files["custommode_mission"] = MOD .. "custommode_mission.lua"
 	__OBJECTIVE_LUA__ = nil
 	ScriptPreInit, ScriptInit, ScriptPostLoad = nil, nil, nil

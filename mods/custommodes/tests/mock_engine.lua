@@ -187,7 +187,11 @@ function IsObjectAlive(e)
 	return e.alive
 end
 function RespawnObject(e) e = Ent(e) e.alive = true Mock.Record("RespawnObject", e.name) end
-function KillObject(e) e = Ent(e) e.alive = false end
+function KillObject(e)
+	e = Ent(e)
+	if e.char then Mock.KillChar(e.char) else e.alive = false end
+	Mock.Record("KillObject", e.name or e.char)
+end
 function SetProperty(e, k, v)
 	local x = Ent(e)
 	if x then
@@ -212,7 +216,7 @@ function GetObjectTeam(e) e = Ent(e) return e and e.team end
 -- characters --------------------------------------------------------------------
 function Mock.AddCharacter(team, human, x, y, z)
 	local c = table.getn(Mock.characters)
-	local ch = { team = team, human = human, unit = { x = x or 1000, y = y or 0, z = z or 1000, alive = true, props = {} } }
+	local ch = { team = team, human = human, unit = { x = x or 1000, y = y or 0, z = z or 1000, alive = true, props = {}, char = c } }
 	Mock.characters[c + 1] = ch
 	table.insert(Mock.teams[team], c)
 	return c
@@ -307,7 +311,7 @@ function Mock.Spawn(c)
 	local ch = Mock.Char(c)
 	local post = PostOf(ch.team)
 	ch.unit = { x = post and post.x or 0, y = 0, z = post and post.z or 0, alive = true, props = {},
-		class = ch.class, baseHealth = 300 }
+		class = ch.class, baseHealth = 300, char = c }
 	local i
 	for i = 1, table.getn(Mock.spawnFns) do Mock.spawnFns[i](c) end
 end

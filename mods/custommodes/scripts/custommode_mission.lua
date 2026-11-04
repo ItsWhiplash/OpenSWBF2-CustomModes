@@ -220,6 +220,14 @@ function HordeMap(code, cfg)
 	CustomModeMission(cfg)
 end
 
+-- Search & Destroy on a stock map: SnDMap("tat2g", { ... })
+function SnDMap(code, cfg)
+	cfg.base = cfg.base or (code .. "_con")
+	cfg.objectiveScript = "ObjectiveSnD"
+	cfg.objectiveClass = "ObjectiveSnD"
+	CustomModeMission(cfg)
+end
+
 -- Rush on a stock map: RushMap("tat2g", { ... })
 function RushMap(code, cfg)
 	cfg.base = cfg.base or (code .. "_con")

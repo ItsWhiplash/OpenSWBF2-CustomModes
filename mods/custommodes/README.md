@@ -8,6 +8,8 @@ New game modes for the stock maps, packed as one AddOn folder:
   lives.
 - **[Horde](#horde)** (`_horde`): every player holds one post together against endless, growing
   waves, and spends kill credits at shop pads between waves.
+- **[Search & Destroy](#search--destroy)** (`_snd`): rounds with one life each; the attackers
+  plant a bomb at one of two sites, and the defenders stop or defuse it.
 
 Both modes work in single player with bots, and on a server where anyone who joins can play.
 
@@ -19,8 +21,8 @@ works with the build you already have, on Windows or the Docker server.
 - `CUSTOMMODES/addme.script` adds the modes to each stock map's mode list, in both eras where the
   map has them.
 - `CUSTOMMODES/data/_lvl_pc/mission.lvl` holds:
-  - the modes: `scripts/objectivepayload.lua`, `scripts/objectiverush.lua` and
-    `scripts/objectivehorde.lua`;
+  - the modes: `scripts/objectivepayload.lua`, `scripts/objectiverush.lua`,
+    `scripts/objectivehorde.lua` and `scripts/objectivesnd.lua`;
   - the shared loader: `scripts/custommode_mission.lua`;
   - one small mission per map and mode: `maps/<mode>/<map><era>.lua`, for example
     `maps/rush/tat2g.lua` for `tat2g_rush`.
@@ -267,6 +269,60 @@ HordeMap("tat2g", {
 | `playersTeam` / `hordeTeam` | `1` / `2` | The humans' team (all humans are put on team 1). |
 | `aiObjectiveWeight` / `aiFightWeight` | `100` / `25` | How strongly bots on both sides go for the last stand, and how strongly they roam and fight instead. |
 
+## Search & Destroy
+
+Rounds, with one life each. Two command posts are bomb sites, marked on the HUD.
+
+- **Setup.** Each round starts with 20 s to spawn. Your team owns its spawn post, and no bomb can
+  be planted yet. Then both spawn posts go neutral, and nobody spawns again until the next round.
+  The 20 s covers the 15 s cycle the engine spawns multiplayer players in. A round doesn't start
+  while a side has nobody alive, so a solo player can take their time choosing a class.
+- **Planting.** An attacker standing at a site for 5 s plants the bomb. Stepping off restarts the
+  plant, so the only way to stop it is to kill them. The round clock (2:30) becomes the bomb's
+  40 s, and only that site's marker stays, pulsing.
+- **Defusing.** A defender standing on the armed site for 7 s defuses it. Stepping off restarts
+  the defuse.
+- **Winning a round.** The attackers win when the bomb goes off (destroying the site's post, for
+  the blast), or when every defender is dead. The defenders win by defusing, by killing every
+  attacker before a plant, or when the clock runs out with no plant. After a plant, only the
+  bomb or a defuse decides it.
+- **The match.** First to 4 round wins. The sides swap roles after round 3, so the attackers'
+  spawn and the sites change hands. Each team's score is its rounds won.
+- **Between rounds.** After 6 s, anyone still alive is killed, so the next round starts fresh.
+  Those deaths show in the stats.
+
+Bots play it too: both sides go for the sites, then for the armed one. An attacker bot on a site
+plants, and a defender bot on an armed site defuses.
+
+Every map works straight away. The two posts farthest apart are the spawns, and the attackers
+get the one their side owns. The two posts nearest the defenders' spawn are the sites, or one
+on a three-post map. The log says which, in a line starting `OpenSWBF2 s&d: attackers spawn`.
+Nothing can be captured.
+
+### Search & Destroy settings
+
+```lua
+SnDMap("tat2g", {
+	attackerSpawn = "cp1",
+	defenderSpawn = "cp6",
+	sites = { "cp4", "cp5" },
+	roundsToWin = 6,
+	halftime = 5,
+})
+```
+
+| Setting | Default | |
+|---|---|---|
+| `attackerSpawn` / `defenderSpawn` / `sites` | worked out | Post names. The spawns stay with the role when the sides swap. |
+| `roundsToWin` / `halftime` | `4` / `3` | Round wins for the match, and rounds before the sides swap (`0`: never). |
+| `setupTime` / `roundTime` | `20` / `150` | Seconds to spawn, and to plant. |
+| `plantTime` / `bombTime` / `defuseTime` | `5` / `40` / `7` | Seconds. |
+| `siteRadius` | `6` | Metres from a site's post to plant or defuse. |
+| `roundEndTime` | `6` | Seconds between a round's end and the next. |
+| `destroySites` | `true` | A detonation destroys the site's post (it comes back next round). |
+| `attackers` | stock `ATT` | `"def"` swaps which side attacks first. |
+| `aiObjectiveWeight` / `aiFightWeight` | `100` / `25` | How strongly bots go for the sites, and how strongly they roam and fight instead. |
+
 ## Tests
 
 `mods/custommodes/tests/run_tests.sh` (Linux, macOS or WSL, with g++) builds the game's own
@@ -281,6 +337,9 @@ both modes against a mock of the engine together with the real `objective.lua` a
 - **Horde:** the layout, wave sizes and enemy health, the dead staying down until the break,
   credits, the boss, the shop pads and their items, one enhancement at a time, the
   enhancement reaching clients, overrun, everyone down, and waiting for a player to spawn.
+- **Search & Destroy:** the layout, one life per round, planting and its reset, detonation and
+  the site coming back, defusing, elimination before and after a plant, time running out,
+  halftime, the match, and waiting for a side to spawn.
 - **All modes:** the client side, the loading hooks and the menu entries.
 
 ## Not tested in the game yet
@@ -320,6 +379,14 @@ source and the mock engine, not in a real match.
   to exist in the stock sides. Change `shop` if one doesn't.
 - **Text.** Pads use the game's Galactic Conquest text for names, so they only show if those
   strings are loaded in a battle.
+
+**Search & Destroy:**
+
+- **Destroying and restoring a site.** Destroying a post and bringing it back next round follows
+  the engine source (`KillObject` / `RespawnObject`). How the destroyed post looks in the game,
+  and whether the blast plays, hasn't been seen.
+- **Clearing the field.** Survivors are killed between rounds. It's a plain kill, so it counts in
+  the death stats, and some maps may show kill messages for it.
 
 **All modes:**
 

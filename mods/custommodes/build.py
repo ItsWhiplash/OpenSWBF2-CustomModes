@@ -3,7 +3,8 @@
 
     python mods/custommodes/build.py [--out DIR] [--luac PATH] [--only tat2g,nab2c] [--modes pay,rush]
 
-Each mode is a folder under maps/ (maps/pay, maps/rush, maps/horde) with one script per stock map, named by
+Each mode is a folder under maps/ (maps/pay, maps/rush, maps/horde,
+maps/snd) with one script per stock map, named by
 the map and era (tat2g.lua makes tat2g_pay or tat2g_rush). Writes DIR/CUSTOMMODES (default:
 mods/custommodes/out/CUSTOMMODES):
     addme.script              registers the modes on the stock maps
@@ -28,7 +29,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.join(HERE, "scripts")
 MAPS = os.path.join(HERE, "maps")
 FOLDER = "CUSTOMMODES"
-SHARED = ("custommode_mission", "objectivepayload", "objectiverush", "objectivehorde")
+SHARED = ("custommode_mission", "objectivepayload", "objectiverush", "objectivehorde", "objectivesnd")
 
 
 def pbl_hash(text):

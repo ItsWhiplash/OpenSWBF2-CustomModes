@@ -91,12 +91,16 @@ When you're done, run `mods\install.bat` again for the normal build.
 
 **Hoth (HTH):**
 
-- [ ] The base, shield generator, ion cannon and turrets look right, and the walkers and
+- [ ] The base, the stock shield generator and ion cannon, and the turrets look right, and the walkers and
       speeders spawn.
 - [ ] Rush on Hoth plays as a push from the south up to the base hangar.
 - [ ] Payload drives the cart up the middle, through the ridge pass and the trench.
 
 **Both:**
+
+- [ ] The ground, sky and weather are the stock ones (Tatooine's on Ground to Space, Hoth's on
+      Hoth). If a texture looks wrong (say, cliff rock on the flats), send me what
+      `install_maps.bat generate` printed.
 
 - [ ] **Watch:** the munge's log. Any missing class names (units, vehicles) are easy to fix in
       `gts.py` and `hoth.py`.

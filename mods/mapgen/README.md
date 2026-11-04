@@ -87,6 +87,26 @@ This part needs the Windows-only SWBF2 Mod Tools; the generator itself runs anyw
    `_LVL_PC` into an AddOn folder, as the Mod Tools' own instructions describe.
 5. Optionally, open `Worlds/GTS/world1/GTS.wld` in ZeroEditor to look around or polish.
 
+## Stock looks
+
+Built with `install_maps.bat generate` (or `--stock <Mod Tools folder>`), the maps take their
+looks from the Mod Tools' own copy of the stock maps, `assets\worlds\<CODE>`. `stock.py` reads
+the stock files there, so no stock file name is guessed:
+
+| | Ground to Space (from Tatooine, `TAT`) | Hoth (from Hoth, `HOT`) |
+|---|---|---|
+| Terrain textures | Each of our layers takes the stock layer whose name and colour fit it best (sand, dirt and rock), with the stock scale and detail texture | Snow, packed snow, ice and rock, the same way |
+| Sky and weather | The stock world's `.sky` (fog, sun, sky dome) and `.fx`, as `GTS.sky` and `GTS.fx` | The same, as `HTH.sky` and `HTH.fx` |
+| Models | The ship stays ours | The stock shield generator and ion cannon replace ours, if they fit their spots (40 m from the centre). The base and gun bunkers stay ours: the hangar post and the bots' paths are built around them |
+
+Whatever is copied brings what it uses: a class its parent class, model and explosion, a model
+its textures, a sky its dome. `generate` prints what it picked. Anything it can't find keeps the
+generated version, so the map still builds. Choose another stock world with `--stock-world`, for
+example `python mods\mapgen\gts.py --out C:\BF2_ModTools --stock C:\BF2_ModTools --stock-world GEO`
+for Geonosis's red rock.
+
+The previews (and the CI build, which has no Mod Tools) still show the generated looks.
+
 ## How the formats were made right
 
 None of this could be munged or played in this session, so every format is ported from the
@@ -121,8 +141,9 @@ that match the files. With `--luac` it also checks the mission scripts compile.
   one place in `gts.py`.
 - **Bots and the ship.** Ground bots have a navigation graph, but there are no flight paths, so
   AI pilots may not find the hangar. Bots that spawn on the deck do have hubs there.
-- **Looks.** The models have one generated plating texture each, and simple glowing materials.
-  The terrain textures are simple generated ones, easy to swap for stock ones. The point lights
+- **Looks.** The stock looks are picked from the stock files' names and colours. If one is a poor
+  fit, `--stock-world` picks another world. Our own models (the ship, the base and the bunkers)
+  have one generated plating texture each, and simple glowing materials. The point lights
   follow WorldEdit's light format, but how bright they look in the game needs a look in a match.
 - **The custom modes** run on both maps: `modes.py` writes their settings into
   `custommodes/maps` (Payload's tracks follow the generated terrain), and the CUSTOMMODES AddOn

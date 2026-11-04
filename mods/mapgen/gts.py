@@ -521,11 +521,20 @@ def mission_script(code, era):
 
 # ---------------------------------------------------------------- output
 
-def build(out_dir, code="GTS"):
+STOCK_WORLD = "TAT"     # the stock world whose terrain textures, sky and weather suit the valley
+
+
+def build(out_dir, code="GTS", modtools=None, stock_world=STOCK_WORLD):
+    """Write the map. With `modtools` (the Mod Tools folder), it takes its terrain textures, sky
+    and weather from the stock world `stock_world` there (see stock.py)."""
     h = make_heights()
     t = build_terrain(h, code)
     w = build_world(code, h)
     root = os.path.join(out_dir, "data_" + code)
+    report = []
+    if modtools:
+        import stock
+        _replaced, report = stock.apply(modtools, stock_world, root, code, ("sand", "dirt", "rock"), t)
     world_dir = os.path.join(root, "Worlds", code, "world1")
     msh_dir = os.path.join(root, "Worlds", code, "msh")
     odf_dir = os.path.join(root, "Worlds", code, "odf")
@@ -552,6 +561,7 @@ def build(out_dir, code="GTS"):
     for rel, text in modes.addon_files(code, "cg", "Ground to Space").items():
         os.makedirs(os.path.join(root, os.path.dirname(rel)), exist_ok=True)
         put(root, rel, text)
+    build.report = report
     return h, t, w, root
 
 
@@ -560,9 +570,13 @@ def main():
     parser.add_argument("--out", default=os.path.join(HERE, "out"))
     parser.add_argument("--code", default="GTS", help="the map's three-letter code")
     parser.add_argument("--preview", action="store_true", help="also render preview images")
+    parser.add_argument("--stock", metavar="MODTOOLS", help="use stock looks from the Mod Tools in this folder")
+    parser.add_argument("--stock-world", default=STOCK_WORLD, help="which stock world (default %(default)s)")
     args = parser.parse_args()
-    h, t, w, root = build(args.out, args.code.upper())
+    h, t, w, root = build(args.out, args.code.upper(), args.stock, args.stock_world.upper())
     print("wrote %s" % root)
+    for line in build.report:
+        print("  " + line)
     print("  terrain %d x %d at %.0f m (%.0f m across), heights %.0f to %.0f m"
           % (LENGTH, LENGTH, GRID, LENGTH * GRID, h.min(), h.max()))
     print("  %d objects, %d regions, %d paths, %d bot hubs, %d links"

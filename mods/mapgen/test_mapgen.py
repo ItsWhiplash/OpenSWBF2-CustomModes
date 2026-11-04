@@ -234,6 +234,93 @@ def test_mode_configs():
           os.path.join("Common", "mission", "GTSg_con.req") in files, "and its mission build lists")
 
 
+def fake_msh(textures, radius):
+    """Just enough of a stock .msh for stock.py: a bounding box and texture names."""
+    def chunk(tag, payload):
+        return tag + struct.pack("<I", len(payload)) + payload
+    body = chunk(b"BBOX", struct.pack("<4f3f3ff", 0, 0, 0, 1, 0, 0, 0, radius, 10, radius, radius))
+    for tex in textures:
+        name = tex.encode() + b"\0"
+        body += chunk(b"MATD", chunk(b"TX0D", name + b"\0" * (-len(name) % 4)))
+    return chunk(b"HEDR", chunk(b"MSH2", body))
+
+
+def test_stock(tmp):
+    """Stock looks from a (fake) Mod Tools: assets/worlds/HOT laid out like the real one."""
+    import hoth
+    import stock
+    mt = os.path.join(tmp, "BF2_ModTools")
+    hot = os.path.join(mt, "assets", "worlds", "HOT")
+    common = os.path.join(mt, "assets", "worlds", "Common", "odfs")
+
+    def put(folder, name, data):
+        os.makedirs(folder, exist_ok=True)
+        with open(os.path.join(folder, name), "wb") as fh:
+            fh.write(data if isinstance(data, bytes) else data.encode())
+
+    t = ter.Terrain(16, 0.01, 4.0)
+    for i, (name, scale) in enumerate((("hot_snow", 0.11), ("hot_cliff01", 0.12), ("hot_frozenlake", 0.13),
+                                       ("hot_ground2", 0.14))):
+        t.texture_names[i], t.texture_scales[i] = name, scale
+    t.detail_texture = "hot_detail"
+    put(os.path.join(hot, "world1"), "hot1.ter", ter.write_ter(t))
+    colours = {"hot_snow": (240, 244, 250), "hot_cliff01": (95, 95, 100), "hot_frozenlake": (170, 205, 235),
+               "hot_ground2": (200, 210, 222), "hot_detail": (128, 128, 128), "hot_sky": (150, 170, 200),
+               "snowflake": (255, 255, 255), "hot_shield": (180, 180, 190)}
+    for name, c in colours.items():
+        put(os.path.join(hot, "world1" if name.startswith("hot_") and name != "hot_shield" else "msh"),
+            name + ".tga", gts.tga(4, 4, [[c] * 4] * 4))
+    put(os.path.join(hot, "world1"), "hot1.sky", 'SkyInfo()\n{\n\tFogColor(200, 210, 230);\n}\n'
+        'DomeInfo()\n{\n\tDomeModel()\n\t{\n\t\tGeometry("hot_sky_dome");\n\t}\n}\n')
+    put(os.path.join(hot, "world1"), "hot1.fx", 'Effect("Precipitation")\n{\n\tTexture("snowflake");\n}\n')
+    put(os.path.join(hot, "world1"), "hot_sky_dome.msh", fake_msh(["hot_sky.tga"], 500))
+    odf = os.path.join(hot, "odf")
+    put(odf, "hoth_bldg_shieldgenerator.odf", '[GameObjectClass]\nClassParent = "com_bldg_major"\n'
+        'GeometryName = "hoth_bldg_shieldgenerator.msh"\n[Properties]\nExplosionName = "hoth_shield_exp"\n')
+    put(odf, "hoth_bldg_shieldgenerator_destroyed.odf", 'GeometryName = "hoth_bldg_shieldgenerator_d.msh"\n')
+    put(odf, "hoth_shield_exp.odf", '[ExplosionClass]\nEffect = "hoth_shield_boom"\n')
+    put(odf, "hoth_bldg_ioncannon.odf", 'GeometryName = "hoth_bldg_ioncannon.msh"\n')
+    put(os.path.join(hot, "msh"), "hoth_bldg_shieldgenerator.msh", fake_msh(["hot_shield"], 30))
+    put(os.path.join(hot, "msh"), "hoth_bldg_ioncannon.msh", fake_msh([], 90))
+    put(common, "com_bldg_major.odf", '[GameObjectClass]\nClassLabel = "destructablebuilding"\n')
+
+    found = stock.Stock(mt, "hot")
+    check(bool(found) and found.terrain().endswith("hot1.ter"), "stock: finds assets/worlds/HOT and its terrain")
+    check(found.find_class([("shield",), ("gen",)]) == "hoth_bldg_shieldgenerator",
+          "stock: finds the shield generator class, not its destroyed version")
+    check(found.find_class([("ion",), ("cannon",)]) == "hoth_bldg_ioncannon" and
+          found.find_class([("explosion",)]) is None, "stock: and the ion cannon, and nothing for a missing thing")
+    check(stock.msh_textures(fake_msh(["a_b.tga", "cd"], 1)) == ["a_b.tga", "cd"], "stock: reads a model's textures")
+
+    out = os.path.join(tmp, "out")
+    h, t2, w, root = hoth.build(out, modtools=mt)
+    report = "\n".join(hoth.build.report)
+    ours = os.path.join(root, "Worlds", "HTH")
+    back = ter.read_ter(open(os.path.join(ours, "world1", "HTH.ter"), "rb").read())
+    check(back.texture_names[:4] == ["hot_snow", "hot_ground2", "hot_frozenlake", "hot_cliff01"],
+          "stock: snow, packed snow, ice and rock take the fitting stock layers: %s" % back.texture_names[:4])
+    check(abs(back.texture_scales[2] - 0.13) < 1e-6 and back.detail_texture == "hot_detail",
+          "stock: with the stock scales and detail texture")
+    have = set()
+    for folder, _d, names in os.walk(ours):
+        have |= {n.lower() for n in names}
+    check({"hot_snow.tga", "hot_cliff01.tga", "hot_detail.tga", "hth.sky", "hth.fx", "hot_sky_dome.msh",
+           "hot_sky.tga", "snowflake.tga"} <= have, "stock: terrain textures, sky, weather and what they use are copied")
+    check({"hoth_bldg_shieldgenerator.odf", "hoth_bldg_shieldgenerator.msh", "hot_shield.tga", "com_bldg_major.odf",
+           "hoth_shield_exp.odf"} <= have and "hth_shieldgen.odf" not in have,
+          "stock: the shield generator comes with its parent class, model, texture and explosion")
+    check("hoth_bldg_ioncannon.odf" not in have and "hth_ioncannon.odf" in have and "too big" in report,
+          "stock: a stock model too big for its spot is left out, and ours kept")
+    wld = open(os.path.join(ours, "world1", "HTH.wld")).read()
+    check('"hoth_bldg_shieldgenerator"' in wld and '"hth_ioncannon"' in wld and '"hth_shieldgen"' not in wld,
+          "stock: the world places the stock shield generator")
+    check(open(os.path.join(ours, "world1", "HTH.sky")).read().startswith("SkyInfo"), "stock: HTH.sky is Hoth's")
+
+    h, t3, w, root = gts.build(os.path.join(tmp, "out2"), modtools=mt)
+    check(t3.texture_names[0] == "gts_sand" and "not found" in gts.build.report[0],
+          "stock: a stock world that isn't there leaves the generated looks")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--luac")
@@ -247,6 +334,8 @@ def main():
         test_world(tmp, args.luac)
     with tempfile.TemporaryDirectory() as tmp:
         test_hoth(tmp, args.luac)
+    with tempfile.TemporaryDirectory() as tmp:
+        test_stock(tmp)
     print("mapgen: %d passed, %d failed" % (passed, failures))
     sys.exit(1 if failures else 0)
 

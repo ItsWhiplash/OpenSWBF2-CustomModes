@@ -496,11 +496,30 @@ def mission_script(code):
 
 # ---------------------------------------------------------------- output
 
-def build(out_dir, code="HTH"):
+STOCK_WORLD = "HOT"
+# our structures a stock class can stand in for: (name words, joined names, metres it may reach)
+STOCK_CLASSES = {
+    "shieldgen": ([("shield",), ("gen",)], ("shieldgen", "shield_gen"), 40.0),
+    "ioncannon": ([("ion",), ("cannon", "can")], ("ioncannon", "ion_cannon"), 40.0),
+}
+
+
+def build(out_dir, code="HTH", modtools=None, stock_world=STOCK_WORLD):
+    """Write the map. With `modtools` (the Mod Tools folder), it takes its terrain textures, sky,
+    weather and the shield generator and ion cannon from the stock world there (see stock.py)."""
     h = make_heights()
     t = build_terrain(h, code)
     w = build_world(code, h)
     root = os.path.join(out_dir, "data_" + code)
+    report, replaced = [], {}
+    c = code.lower()
+    if modtools:
+        import stock
+        classes = {"%s_%s" % (c, kind): spec for kind, spec in STOCK_CLASSES.items()}
+        replaced, report = stock.apply(modtools, stock_world, root, code, ("snow", "packed", "ice", "rock"), t,
+                                       classes)
+        w.objects = [(layer, replaced.get(cls, cls), name, pos, rot, team, props)
+                     for layer, cls, name, pos, rot, team, props in w.objects]
     world_dir = os.path.join(root, "Worlds", code, "world1")
     msh_dir = os.path.join(root, "Worlds", code, "msh")
     odf_dir = os.path.join(root, "Worlds", code, "odf")
@@ -516,6 +535,8 @@ def build(out_dir, code="HTH"):
         put(world_dir, name, text)
     put(world_dir, code + ".ter", ter.write_ter(t))
     for kind, (fn, foley) in STRUCTURES.items():
+        if "%s_%s" % (c, kind) in replaced:
+            continue
         materials, mesh, collision = structure_model(fn, code.lower() + "_plating")
         for name, data in msh.prop_files("%s_%s" % (code.lower(), kind), materials, mesh, collision, foley).items():
             put(odf_dir if name.endswith(".odf") else msh_dir, name, data)
@@ -526,6 +547,7 @@ def build(out_dir, code="HTH"):
     for rel, text in modes.addon_files(code, "g", "Hoth").items():
         os.makedirs(os.path.join(root, os.path.dirname(rel)), exist_ok=True)
         put(root, rel, text)
+    build.report = report
     return h, t, w, root
 
 
@@ -559,9 +581,13 @@ def main():
     parser.add_argument("--out", default=os.path.join(HERE, "out"))
     parser.add_argument("--code", default="HTH", help="the map's three-letter code")
     parser.add_argument("--preview", action="store_true")
+    parser.add_argument("--stock", metavar="MODTOOLS", help="use stock looks from the Mod Tools in this folder")
+    parser.add_argument("--stock-world", default=STOCK_WORLD, help="which stock world (default %(default)s)")
     args = parser.parse_args()
-    h, t, w, root = build(args.out, args.code.upper())
+    h, t, w, root = build(args.out, args.code.upper(), args.stock, args.stock_world.upper())
     print("wrote %s" % root)
+    for line in build.report:
+        print("  " + line)
     print("  terrain %d x %d at %.0f m (%.0f m across), heights %.0f to %.0f m"
           % (LENGTH, LENGTH, GRID, LENGTH * GRID, h.min(), h.max()))
     print("  %d objects, %d regions, %d paths, %d bot hubs, %d links"

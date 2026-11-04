@@ -39,7 +39,9 @@ track recorded first: see the custom modes README).
 1. In the Mod Tools' Visual Munge, make two new maps with the codes `GTS` and `HTH`. This only
    adds their build files.
 2. Run `mods\mapgen\install_maps.bat generate`. It writes both maps into the Mod Tools folder (set
-   `SWBF2_MODTOOLS` if they aren't in `C:\BF2_ModTools`).
+   `SWBF2_MODTOOLS` if they aren't in `C:\BF2_ModTools`). It also gives them stock looks from the
+   Mod Tools' copy of the stock maps: Tatooine's ground, sky and weather for Ground to Space, and
+   Hoth's for Hoth, with its shield generator and ion cannon. It lists what it used.
 3. Munge `GTS` and `HTH` in Visual Munge.
 4. Run `mods\mapgen\install_maps.bat copy`. It installs both into your game's `AddOn` folder.
 5. Run `mods\install.bat` again: the custom modes on these maps come from the CUSTOMMODES AddOn.

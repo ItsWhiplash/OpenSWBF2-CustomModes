@@ -8,6 +8,10 @@ rem   mods\mapgen\install_maps.bat copy         installs the munged maps into yo
 rem
 rem It finds the Mod Tools from SWBF2_MODTOOLS (default C:\BF2_ModTools) and the game from
 rem SWBF2_GAMEDATA (default: Steam's usual folder).
+rem
+rem generate also gives the maps stock looks from the Mod Tools' copy of the stock maps
+rem (assets\worlds\TAT for Ground to Space, assets\worlds\HOT for Hoth): their terrain textures,
+rem sky and weather, and Hoth's shield generator and ion cannon. It lists what it used.
 setlocal
 cd /d "%~dp0..\.."
 
@@ -38,8 +42,8 @@ if errorlevel 1 (
     echo Python 3 is needed: install it from python.org, with numpy: pip install numpy
     exit /b 1
 )
-python mods\mapgen\gts.py --out "%MODTOOLS%" || exit /b 1
-python mods\mapgen\hoth.py --out "%MODTOOLS%" || exit /b 1
+python mods\mapgen\gts.py --out "%MODTOOLS%" --stock "%MODTOOLS%" || exit /b 1
+python mods\mapgen\hoth.py --out "%MODTOOLS%" --stock "%MODTOOLS%" || exit /b 1
 echo.
 echo Written into "%MODTOOLS%\data_GTS" and "%MODTOOLS%\data_HTH".
 echo Next: munge GTS and HTH in Visual Munge, then run: install_maps.bat copy

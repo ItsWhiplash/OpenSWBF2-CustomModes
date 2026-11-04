@@ -76,14 +76,6 @@ local function Log(text)
 	print(PAYLOAD_LOG .. text)
 end
 
--- true where the game is simulated: single player, or the multiplayer host
-function Payload_IsAuthority()
-	if ScriptCB_InNetGame and ScriptCB_InNetGame() then
-		return ScriptCB_GetAmHost() and true or false
-	end
-	return true
-end
-
 local function TeamFrom(value, att, def)
 	if value == "att" or value == "ATT" then return att end
 	if value == "def" or value == "DEF" then return def end
@@ -321,7 +313,7 @@ end
 
 function ObjectivePayload:AllCommandPosts()
 	local names, seen = {}, {}
-	local lists = { self.commandPosts or {}, gPayloadConquestCPs or {} }
+	local lists = { self.commandPosts or {}, gCustomModeCPs or {} }
 	local i, j
 	for i = 1, 2 do
 		for j = 1, table.getn(lists[i]) do
@@ -439,7 +431,7 @@ function ObjectivePayload:Start()
 		SetReinforcementCount(self.teamDEF, -1)
 	end
 
-	if not Payload_IsAuthority() then
+	if not CustomMode_IsAuthority() then
 		return
 	end
 
@@ -510,7 +502,7 @@ end
 --=============================
 
 function ObjectivePayload:StartRecorder()
-	if not Payload_IsAuthority() then
+	if not CustomMode_IsAuthority() then
 		return
 	end
 	SetReinforcementCount(self.teamATT, -1)

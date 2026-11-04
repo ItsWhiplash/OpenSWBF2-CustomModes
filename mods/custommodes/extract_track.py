@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Turns a recorded payload route into a track for a map's config.
 
-    python mods/payload/extract_track.py BattlefrontII.log [--every 1] [--reverse]
+    python mods/custommodes/extract_track.py BattlefrontII.log [--every 1] [--reverse]
 
 Recording: start a Payload mission whose map has no track yet (it records instead), walk the
 route from the attackers' start to the finish, then quit. The game's log has a line for every
 point (run the game with -log payload.log, or look in its usual log). This prints the track
-and the command posts found, ready to paste into mods/payload/maps/<map>.lua.
+and the command posts found, ready to paste into mods/custommodes/maps/pay/<map>.lua.
 """
 import argparse
 import re

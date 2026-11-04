@@ -24,6 +24,10 @@ function Mock.Reset()
 	Mock.reads = {}
 	Mock.stockLoaded = false
 	Mock.printed = {}
+	Mock.deathFns = {}
+	Mock.ticketFns = {}
+	Mock.defeat = nil
+	Mock.cpNames = { "CP1", "cp2" }
 end
 
 function Mock.Record(name, a1, a2, a3, a4)
@@ -144,7 +148,7 @@ local function Ent(e)
 end
 
 function Mock.AddEntity(name, x, y, z, team)
-	local e = { name = string.lower(name), x = x, y = y, z = z, team = team or 0, alive = true, props = {} }
+	local e = { name = string.lower(name), x = x, y = y, z = z, team = team or 0, alive = true, props = {}, capturable = true }
 	Mock.entities[e.name] = e
 	return e
 end
@@ -178,10 +182,23 @@ function RespawnObject(e) e = Ent(e) e.alive = true Mock.Record("RespawnObject",
 function KillObject(e) e = Ent(e) e.alive = false end
 function SetProperty(e, k, v)
 	local x = Ent(e)
-	if x then x.props[k] = v end
+	if x then
+		x.props[k] = v
+		-- like CommandPost::SetProperty: no capture region, or (Radius) a new one when it has none
+		if k == "CaptureRegion" and v == "" then x.capturable = false end
+		if k == "Radius" and not x.capturable then x.capturable = true end
+	end
 	Mock.Record("SetProperty", type(e) == "string" and string.lower(e) or (x and x.name), k, v)
 end
 function SetObjectTeam(e, t) Ent(e).team = t Mock.Record("SetObjectTeam", string.lower(e), t) end
+function AICanCaptureCP(name, team, b) Mock.Record("AICanCaptureCP", string.lower(name), team, b) end
+-- a team stands on a post until it's theirs; false when the post has no capture region
+function Mock.Capture(name, team)
+	local e = Ent(name)
+	if not e.capturable then return false end
+	e.team = team
+	return true
+end
 function GetObjectTeam(e) e = Ent(e) return e and e.team end
 
 -- characters --------------------------------------------------------------------
@@ -213,11 +230,29 @@ function SetTeamPoints(t, p) Mock.points[t] = p end
 function GetTeamPoints(t) return Mock.points[t] or 0 end
 function AddTeamPoints(t, p) Mock.points[t] = (Mock.points[t] or 0) + p end
 function ShowTeamPoints(t, b) Mock.Record("ShowTeamPoints", t, b) end
-function SetReinforcementCount(t, n) Mock.reinforcements[t] = n end
+local function TicketsChanged(t)
+	local i
+	for i = 1, table.getn(Mock.ticketFns) do Mock.ticketFns[i](t, Mock.reinforcements[t]) end
+end
+-- like the engine: a negative count is stored as 0x7fffffff (unlimited)
+function SetReinforcementCount(t, n)
+	if n < 0 then n = 2147483647 end
+	Mock.reinforcements[t] = n
+	TicketsChanged(t)
+end
+function Mock.Unlimited(t) return (Mock.reinforcements[t] or 0) > 1000000 end
 function GetReinforcementCount(t) return Mock.reinforcements[t] or 0 end
-function AddReinforcements(t, n) Mock.reinforcements[t] = (Mock.reinforcements[t] or 0) + n end
+function AddReinforcements(t, n)
+	Mock.reinforcements[t] = (Mock.reinforcements[t] or 0) + n
+	Mock.Record("AddReinforcements", t, n)
+	TicketsChanged(t)
+end
 function MissionVictory(t) Mock.victory = t Mock.Record("MissionVictory", t) end
-function MissionDefeat(t) Mock.Record("MissionDefeat", t) end
+function MissionDefeat(t) Mock.defeat = t Mock.Record("MissionDefeat", t) end
+function Mock.Kill(c)
+	local i
+	for i = 1, table.getn(Mock.deathFns) do Mock.deathFns[i](c, nil) end
+end
 function AddAIGoal(team, kind, weight, target)
 	Mock.Record("AddAIGoal", team, kind, weight, target)
 	return { team = team, kind = kind }
@@ -226,7 +261,7 @@ function ClearAIGoals(t) Mock.Record("ClearAIGoals", t) end
 function DeleteAIGoal(g) Mock.Record("DeleteAIGoal", g) end
 function AllowAISpawn(t, b) Mock.Record("AllowAISpawn", t, b) end
 function MapAddEntityMarker(e, ...) Mock.Record("MapAddEntityMarker", e, arg[3]) end
-function MapRemoveEntityMarker(e) end
+function MapRemoveEntityMarker(e) Mock.Record("MapRemoveEntityMarker", e) end
 function MapHideCommandPosts() end
 function ShowMessageText(k, t) Mock.Record("ShowMessageText", k, t) end
 function SetFlagGameplayType(t) end
@@ -236,8 +271,8 @@ function CompleteObjective() end
 function BroadcastVoiceOver() end
 function ShowObjectiveTextPopup() end
 function AddMissionHint() end
-function OnCharacterDeath(fn) end
-function OnTicketCountChange(fn) end
+function OnCharacterDeath(fn) table.insert(Mock.deathFns, fn) end
+function OnTicketCountChange(fn) table.insert(Mock.ticketFns, fn) end
 function AddDeathRegion(r) Mock.Record("AddDeathRegion", r) end
 
 -- loading --------------------------------------------------------------------------
@@ -264,8 +299,10 @@ Mock.files["tat2g_con"] = function()
 	DEF = ALL
 	function ScriptPostLoad()
 		conquest = ObjectiveConquest:New{ teamATT = ATT, teamDEF = DEF, textATT = "game.modes.con", multiplayerRules = true }
-		conquest:AddCommandPost(CommandPost:New{ name = "CP1" })
-		conquest:AddCommandPost(CommandPost:New{ name = "cp2" })
+		local i
+		for i = 1, table.getn(Mock.cpNames) do
+			conquest:AddCommandPost(CommandPost:New{ name = Mock.cpNames[i] })
+		end
 		conquest:Start()
 		AddDeathRegion("deathregion")
 		Mock.stockPostLoadRan = true

@@ -1,57 +1,12 @@
 --
--- Headless tests for the payload mode, run with the game's own Lua 5.0 (see run_tests.sh).
--- They run the real objective.lua and objectiveconquest.lua from data/scripts/mission.
+-- Payload tests (harness.lua sets up the mission).
 --
 
-local failures, passed = 0, 0
-local current = "?"
-
-local function check(cond, what)
-	if cond then
-		passed = passed + 1
-	else
-		failures = failures + 1
-		Mock.verbose = false
-		print2("FAIL [" .. current .. "] " .. what)
-	end
-end
-
-local function near(a, b, tol) return a and b and math.abs(a - b) <= (tol or 0.05) end
-
-print2 = function(s) Mock.rawprint(s) end
-
-local MISSION = "data/scripts/mission/"
-local MOD = "mods/payload/scripts/"
-
--- what the engine does to start a mission: run the script's top level (before the mission API
--- exists), register the API, then ScriptPreInit, ScriptInit and ScriptPostLoad
-local function StartMission(cfg)
-	Mock.Reset()
-	Mock.ran = {}
-	Mock.files["objective"] = MISSION .. "objective.lua"
-	Mock.files["objectiveconquest"] = MISSION .. "objectiveconquest.lua"
-	Mock.files["objectivepayload"] = MOD .. "objectivepayload.lua"
-	Mock.files["payload_mission"] = MOD .. "payload_mission.lua"
-	__OBJECTIVE_LUA__ = nil
-	ScriptPreInit, ScriptInit, ScriptPostLoad = nil, nil, nil
-	ATT, DEF, RetailReadDataFile, gPayload = nil, nil, nil, nil
-	ReadDataFile, SetMemoryPoolSize = nil, nil
-
-	ScriptCB_DoFile("payload_mission")
-	PayloadMap("tat2g", cfg)
-
-	ReadDataFile = Mock.ReadDataFile
-	SetMemoryPoolSize = Mock.SetMemoryPoolSize
-	Mock.AddEntity("cp1", 0, 0, -20, 1)
-	Mock.AddEntity("cp2", 0, 0, 60, 2)
-	Mock.AddEntity("cp3", 0, 0, 120, 2)
-	ScriptPreInit()
-	ScriptInit()
-	ScriptPostLoad()
-	return gPayload
-end
-
 local STRAIGHT = { { 0, 0, 0 }, { 0, 0, 50 }, { 0, 0, 100 } }
+
+-- the stock script lists its posts in mixed case, and not all of them
+local CONQUEST = { "CP1", "cp2" }
+local function StartPayload(cfg) return StartMission(cfg, "PayloadMap", nil, CONQUEST) end
 
 local function Cart() return Mock.entities["payload_cart"] end
 
@@ -65,14 +20,9 @@ local function Escort(list)
 	end
 end
 
-local function test(name, fn)
-	current = name
-	fn()
-end
-
 ------------------------------------------------------------------------------------------
 test("loading", function()
-	local p = StartMission({ track = STRAIGHT })
+	local p = StartPayload({ track = STRAIGHT })
 	check(Mock.stockInitRan and Mock.stockPostLoadRan, "the stock ScriptInit and ScriptPostLoad ran")
 	check(Mock.reads[1] == ".\\mission.lvl", "the stock mission.lvl was read first, not this addon's")
 	-- the vehicle's side loads just before the first side the map reads
@@ -88,18 +38,18 @@ test("loading", function()
 	check(Mock.pools["Weapon"] == 200, "other pools untouched")
 	check(Mock.Count("AddDeathRegion") == 1, "the map's own post-load setup still runs")
 	check(ObjectiveConquest.Start ~= nil and Mock.timers["bleed1"] == nil, "conquest never started (no bleed)")
-	check(gPayloadConquestCPs[1] == "CP1" and gPayloadConquestCPs[2] == "cp2", "conquest's command posts noted")
+	check(gCustomModeCPs[1] == "CP1" and gCustomModeCPs[2] == "cp2", "conquest's command posts noted")
 	check(Mock.Count("SetProperty", "cp1") >= 1 and Cart().props["MaxHealth"] == 100000, "capture off, cart tough")
 	check(p.teamATT == 1 and p.teamDEF == 2, "teams from the stock script's ATT and DEF")
 	check(Mock.Count("CreateEntity", "imp_hover_fightertank") == 1, "one cart created")
 	check(near(Cart().x, 0) and near(Cart().z, 0), "cart at the start")
 	check(Mock.Find("SetNumBots") and Mock.Find("SetNumBots").a1 == 12, "bot count from the game options")
 	check(Mock.Count("AddAIGoal") == 4, "bots get payload and fight goals")
-	check(Mock.reinforcements[1] == -1 and Mock.reinforcements[2] == -1, "unlimited reinforcements")
+	check(Mock.Unlimited(1) and Mock.Unlimited(2), "unlimited reinforcements")
 end)
 
 test("speed", function()
-	local p = StartMission({ track = STRAIGHT, timeLimit = 0 })
+	local p = StartPayload({ track = STRAIGHT, timeLimit = 0 })
 	Mock.Advance(10)
 	check(near(p.s, 0), "nobody near: it stays put")
 	local a1 = Mock.AddCharacter(1, true)
@@ -116,7 +66,7 @@ test("speed", function()
 end)
 
 test("speed table", function()
-	local p = StartMission({ track = STRAIGHT })
+	local p = StartPayload({ track = STRAIGHT })
 	check(p:SpeedFor(1, 0) == 1.5 and p:SpeedFor(2, 0) == 2.0 and p:SpeedFor(5, 0) == 3.5 and p:SpeedFor(9, 0) == 3.5,
 		"1.5, 2.0 ... 3.5 cap")
 	check(p:SpeedFor(3, 1) == 0, "contested: stopped")
@@ -124,7 +74,7 @@ test("speed table", function()
 end)
 
 test("contest and rollback", function()
-	local p = StartMission({ track = STRAIGHT, timeLimit = 0, checkpoints = { { at = 0.2 } } })
+	local p = StartPayload({ track = STRAIGHT, timeLimit = 0, checkpoints = { { at = 0.2 } } })
 	local a = Mock.AddCharacter(1, true)
 	local d = Mock.AddCharacter(2, false)
 	Mock.Advance(20, 0.05, Escort({ a }))          -- 30 m, past the checkpoint at 20 m
@@ -140,7 +90,7 @@ test("contest and rollback", function()
 end)
 
 test("checkpoints and delivery", function()
-	local p = StartMission({ track = STRAIGHT, timeLimit = 100,
+	local p = StartPayload({ track = STRAIGHT, timeLimit = 100,
 		checkpoints = { { at = 0.5, giveCPs = { "cp2" } } } })
 	local a = Mock.AddCharacter(1, true)
 	Mock.Advance(10, 0.05, Escort({ a }))
@@ -154,13 +104,13 @@ test("checkpoints and delivery", function()
 end)
 
 test("time runs out", function()
-	local p = StartMission({ track = STRAIGHT, timeLimit = 20 })
+	local p = StartPayload({ track = STRAIGHT, timeLimit = 20 })
 	Mock.Advance(25)
 	check(Mock.victory == 2, "defenders win on time")
 end)
 
 test("overtime", function()
-	local p = StartMission({ track = STRAIGHT, timeLimit = 10 })
+	local p = StartPayload({ track = STRAIGHT, timeLimit = 10 })
 	local a = Mock.AddCharacter(1, true)
 	Mock.Advance(15, 0.05, Escort({ a }))
 	check(Mock.victory == nil and p.overtime, "overtime while attackers are on it")
@@ -172,7 +122,7 @@ test("overtime", function()
 end)
 
 test("can't drive or destroy it", function()
-	local p = StartMission({ track = STRAIGHT })
+	local p = StartPayload({ track = STRAIGHT })
 	local a = Mock.AddCharacter(1, true)
 	Mock.EnterVehicle(a, "payload_cart")
 	check(Mock.Count("ExitVehicle", a) == 1, "thrown out of the payload")
@@ -185,7 +135,7 @@ test("can't drive or destroy it", function()
 end)
 
 test("in-vehicle soldiers don't push", function()
-	local p = StartMission({ track = STRAIGHT, timeLimit = 0 })
+	local p = StartPayload({ track = STRAIGHT, timeLimit = 0 })
 	local a = Mock.AddCharacter(1, true)
 	Mock.Char(a).vehicle = Mock.AddEntity("speeder", 0, 0, 0)
 	Mock.Advance(5, 0.05, Escort({ a }))
@@ -193,7 +143,7 @@ test("in-vehicle soldiers don't push", function()
 end)
 
 test("curved track", function()
-	local p = StartMission({ track = { { 0, 0, 0 }, { 30, 0, 0 }, { 30, 5, 40 } } })
+	local p = StartPayload({ track = { { 0, 0, 0 }, { 30, 0, 0 }, { 30, 5, 40 } } })
 	check(near(p.length, 30 + math.sqrt(25 + 1600), 0.01), "length")
 	local x, y, z = p:PointAt(30 + p.length * 0 + 20.155)
 	check(near(x, 30) and near(y, 2.5, 0.05) and near(z, 20, 0.1), "point on the second leg")
@@ -202,7 +152,7 @@ test("curved track", function()
 end)
 
 test("recorder", function()
-	local p = StartMission({ track = {} })
+	local p = StartPayload({ track = {} })
 	check(Mock.Count("CreateEntity") == 0, "no cart while recording")
 	check(Mock.Count("AllowAISpawn") == 2, "no bots while recording")
 	local h = Mock.AddCharacter(1, true, 0, 0, 0)
@@ -226,14 +176,14 @@ test("clients only watch", function()
 	Mock.Reset()
 	local savedReset = Mock.Reset
 	Mock.Reset = function() savedReset() Mock.net = true Mock.host = false end
-	StartMission({ track = STRAIGHT })
+	StartPayload({ track = STRAIGHT })
 	Mock.Reset = savedReset
 	check(Mock.Count("CreateEntity") == 0, "no second cart on a client")
 	check(Mock.timers["payloadTick"] == nil, "no payload logic on a client")
 end)
 
 test("attackers swapped", function()
-	local p = StartMission({ track = STRAIGHT, attackers = "def", initialCPs = { cp3 = "att" } })
+	local p = StartPayload({ track = STRAIGHT, attackers = "def", initialCPs = { cp3 = "att" } })
 	check(p.teamATT == 2 and p.teamDEF == 1, "attackers = \"def\" swaps the teams")
 	check(Mock.entities["cp3"].team == 2, "initialCPs uses att/def")
 end)
@@ -244,17 +194,13 @@ test("addme", function()
 	gModeFallbackNames, gModeFallbackIcons = {}, {}
 	local added = {}
 	AddDownloadableContent = function(map, mission, mem) table.insert(added, map .. ":" .. mission) end
-	PAYLOAD_MISSIONS = { "tat2g", "tat2c", "zzz1g" }
+	CUSTOMMODE_MISSIONS = { { "tat2g", "pay" }, { "tat2c", "pay" }, { "zzz1g", "pay" }, { "tat2g", "rush" } }
 	dofile(MOD .. "addme.lua")
 	local sp, mp = sp_missionselect_listbox_contents, mp_missionselect_listbox_contents
 	check(sp[1].mode_pay_g == 1 and sp[1].mode_pay_c == 1 and sp[1].mode_con_g == 1, "stock row gains Payload, keeps conquest")
 	check(mp[1].mode_pay_g == 1 and mp[1].era_c == 1, "matched case-insensitively")
 	check(table.getn(sp) == 2 and sp[2].mapluafile == "zzz1%s_%s" and sp[2].era_g == 1, "unknown map gets its own row")
-	check(added[1] == "tat2:tat2g_pay" and table.getn(added) == 3, "missions registered as add-on content")
-	check(gModeFallbackNames.pay == "Payload", "the mode is named Payload")
+	check(added[1] == "tat2:tat2g_pay" and added[4] == "tat2:tat2g_rush" and table.getn(added) == 4, "missions registered as add-on content")
+	check(sp[1].mode_rush_g == 1 and table.getn(sp) == 2, "a second mode joins the same row")
+	check(gModeFallbackNames.pay == "Payload" and gModeFallbackNames.rush == "Rush", "the modes are named")
 end)
-
-print2(string.format("%d passed, %d failed", passed, failures))
-if failures > 0 then
-	error("tests failed")
-end

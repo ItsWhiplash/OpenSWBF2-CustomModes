@@ -1,20 +1,33 @@
 --
--- OpenSWBF2 Payload: turns a stock map into a payload mission.
+-- OpenSWBF2 custom modes: turns a stock map into a mission of another mode.
 --
--- A payload mission (tat2g_pay, say) is a tiny script that calls PayloadMission{ ... } with
--- the map's settings. Instead of copying the stock map's loading code, it reads the stock
--- conquest mission (tat2g_con) from the game's own mission.lvl and runs it, with three changes:
---   * ScriptInit also loads the payload vehicle's class and makes room for it;
+-- A custom mission (tat2g_pay, tat2g_rush, ...) is a tiny script that calls PayloadMap or
+-- RushMap with the map's settings. Instead of copying the stock map's loading code, it reads the
+-- stock conquest mission (tat2g_con) from the game's own mission.lvl and runs it, with changes:
+--   * ScriptInit can also load extra classes (the payload's vehicle) and make room for them;
 --   * in ScriptPostLoad, conquest is created but never started (the map's other setup, such as
---     death regions, doors and hero rules, still runs), and its command posts are noted;
---   * then the payload objective starts.
+--     death regions, doors and hero rules, still runs), and its command posts are noted in
+--     gCustomModeCPs;
+--   * then the mode's objective starts.
 -- Every machine runs this the same way, so clients load what the server loads.
 --
 
-function PayloadMission(cfg)
-	gPayloadConfig = cfg
+-- true where the game is simulated: single player, or the multiplayer host
+function CustomMode_IsAuthority()
+	if ScriptCB_InNetGame and ScriptCB_InNetGame() then
+		return ScriptCB_GetAmHost() and true or false
+	end
+	return true
+end
+
+-- settings the loader uses itself; the rest go to the objective
+local LoaderKeys = { base = 1, extraData = 1, memoryPools = 1, attackers = 1, objectiveScript = 1, objectiveClass = 1 }
+
+function CustomModeMission(cfg)
+	gCustomModeConfig = cfg
 	local base = cfg.base
-	assert(base, "PayloadMission needs base, the stock mission to build on (e.g. \"tat2g_con\")")
+	assert(base, "CustomModeMission needs base, the stock mission to build on (e.g. \"tat2g_con\")")
+	assert(cfg.objectiveScript and cfg.objectiveClass, "CustomModeMission needs objectiveScript and objectiveClass")
 
 	local baseFns = {}
 	local ours = {}
@@ -31,7 +44,7 @@ function PayloadMission(cfg)
 		injected = true
 		local i
 		for i = 1, table.getn(cfg.extraData or {}) do
-			print("OpenSWBF2 payload: loading " .. cfg.extraData[i][1])
+			print("OpenSWBF2 custom mode: loading " .. cfg.extraData[i][1])
 			RealReadDataFile(unpack(cfg.extraData[i]))
 		end
 	end
@@ -68,8 +81,8 @@ function PayloadMission(cfg)
 		ScriptPreInit = ours.ScriptPreInit
 		ScriptInit = ours.ScriptInit
 		ScriptPostLoad = ours.ScriptPostLoad
-		assert(baseFns.ScriptInit ~= ours.ScriptInit, "payload: stock mission " .. base .. " was not found")
-		ScriptCB_DoFile("ObjectivePayload")
+		assert(baseFns.ScriptInit ~= ours.ScriptInit, "custom mode: stock mission " .. base .. " was not found")
+		ScriptCB_DoFile(cfg.objectiveScript)
 		if baseFns.ScriptPreInit and baseFns.ScriptPreInit ~= ours.ScriptPreInit then
 			baseFns.ScriptPreInit()
 		end
@@ -94,7 +107,7 @@ function PayloadMission(cfg)
 	end
 
 	function ours.ScriptPostLoad()
-		gPayloadConquestCPs = {}
+		gCustomModeCPs = {}
 		local savedStart, savedAdd
 		if ObjectiveConquest then
 			savedStart = ObjectiveConquest.Start
@@ -102,7 +115,7 @@ function PayloadMission(cfg)
 			ObjectiveConquest.Start = function(self) end
 			ObjectiveConquest.AddCommandPost = function(self, cp)
 				if cp and cp.name then
-					table.insert(gPayloadConquestCPs, cp.name)
+					table.insert(gCustomModeCPs, cp.name)
 				end
 			end
 		end
@@ -123,12 +136,14 @@ function PayloadMission(cfg)
 		local o = { teamATT = att, teamDEF = def, multiplayerRules = true }
 		local k, v
 		for k, v in pairs(cfg) do
-			if k ~= "base" and k ~= "extraData" and k ~= "memoryPools" and k ~= "attackers" then
+			if not LoaderKeys[k] then
 				o[k] = v
 			end
 		end
-		gPayload = ObjectivePayload:New(o)
-		gPayload:Start()
+		local Class = _G[cfg.objectiveClass]
+		assert(Class, "custom mode: no objective " .. cfg.objectiveClass)
+		gCustomMode = Class:New(o)
+		gCustomMode:Start()
 	end
 
 	ScriptPreInit = ours.ScriptPreInit
@@ -142,7 +157,7 @@ PayloadEraDefaults = {
 	c = { payloadClass = "rep_hover_fightertank", extraData = { { "SIDE\\rep.lvl", "rep_hover_fightertank" } } },
 }
 
--- PayloadMission with the era's vehicle filled in: PayloadMap("tat2g", { ...settings... })
+-- Payload on a stock map, with the era's vehicle filled in: PayloadMap("tat2g", { ... })
 function PayloadMap(code, cfg)
 	local era = string.sub(code, -1)
 	local defaults = PayloadEraDefaults[era] or PayloadEraDefaults.g
@@ -150,5 +165,15 @@ function PayloadMap(code, cfg)
 	cfg.payloadClass = cfg.payloadClass or defaults.payloadClass
 	cfg.extraData = cfg.extraData or defaults.extraData
 	cfg.memoryPools = cfg.memoryPools or { EntityHover = 1 }
-	PayloadMission(cfg)
+	cfg.objectiveScript = "ObjectivePayload"
+	cfg.objectiveClass = "ObjectivePayload"
+	CustomModeMission(cfg)
+end
+
+-- Rush on a stock map: RushMap("tat2g", { ... })
+function RushMap(code, cfg)
+	cfg.base = cfg.base or (code .. "_con")
+	cfg.objectiveScript = "ObjectiveRush"
+	cfg.objectiveClass = "ObjectiveRush"
+	CustomModeMission(cfg)
 end

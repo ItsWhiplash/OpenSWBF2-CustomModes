@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Builds the Payload AddOn folder for OpenSWBF2.
+"""Builds the custom modes AddOn folder for OpenSWBF2.
 
-    python mods/payload/build.py [--out DIR] [--luac PATH] [--only tat2g,nab2c]
+    python mods/custommodes/build.py [--out DIR] [--luac PATH] [--only tat2g,nab2c] [--modes pay,rush]
 
-Writes DIR/PAYLOAD (default: mods/payload/out/PAYLOAD):
-    addme.script           registers the Payload mode on the stock maps
-    data/_lvl_pc/mission.lvl  the shared payload scripts, and one sub-level per mission
+Each mode is a folder under maps/ (maps/pay, maps/rush) with one script per stock map, named by
+the map and era (tat2g.lua makes tat2g_pay or tat2g_rush). Writes DIR/CUSTOMMODES (default:
+mods/custommodes/out/CUSTOMMODES):
+    addme.script              registers the modes on the stock maps
+    data/_lvl_pc/mission.lvl  the shared scripts, and one sub-level per mission
 
-Copy PAYLOAD into the game's AddOn folder (GameData/AddOn) on every machine, or into the Docker
+Copy CUSTOMMODES into the game's AddOn folder (GameData/AddOn) on every machine, or into the Docker
 server's addons folder (its launcher hands it to players who join).
 
 The scripts are stored as Lua source: the game compiles them as it loads them, so this needs no
@@ -25,7 +27,8 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.join(HERE, "scripts")
 MAPS = os.path.join(HERE, "maps")
-FOLDER = "PAYLOAD"
+FOLDER = "CUSTOMMODES"
+SHARED = ("custommode_mission", "objectivepayload", "objectiverush")
 
 
 def pbl_hash(text):
@@ -56,15 +59,25 @@ def read(path):
         return f.read()
 
 
-def missions(only):
-    codes = sorted(f[:-4] for f in os.listdir(MAPS) if f.endswith(".lua"))
+def missions(only, modes):
+    """(map code, mode) pairs, such as ("tat2g", "rush")."""
+    found = []
+    for mode in sorted(os.listdir(MAPS)):
+        folder = os.path.join(MAPS, mode)
+        if not os.path.isdir(folder) or (modes and mode not in modes):
+            continue
+        found += [(f[:-4], mode) for f in sorted(os.listdir(folder)) if f.endswith(".lua")]
     if only:
         wanted = set(c.strip().lower() for c in only.split(","))
-        unknown = wanted - set(codes)
+        unknown = wanted - set(code for code, _ in found)
         if unknown:
             sys.exit("no map config for: " + ", ".join(sorted(unknown)))
-        codes = [c for c in codes if c in wanted]
-    return codes
+        found = [m for m in found if m[0] in wanted]
+    return found
+
+
+def map_path(code, mode):
+    return os.path.join(MAPS, mode, code + ".lua")
 
 
 def check_syntax(luac, sources):
@@ -79,8 +92,8 @@ def check_syntax(luac, sources):
                 sys.exit("syntax error in %s:\n%s" % (name, result.stderr or result.stdout))
 
 
-def mission_source(code):
-    return (b'ScriptCB_DoFile("payload_mission")\n' + read(os.path.join(MAPS, code + ".lua")))
+def mission_source(code, mode):
+    return b'ScriptCB_DoFile("custommode_mission")\n' + read(map_path(code, mode))
 
 
 def main():
@@ -88,15 +101,16 @@ def main():
     parser.add_argument("--out", default=os.path.join(HERE, "out"))
     parser.add_argument("--luac", help="a Lua 5.0 compiler, to check syntax first")
     parser.add_argument("--only", help="comma-separated map codes, such as tat2g,nab2c")
+    parser.add_argument("--modes", help="comma-separated modes, such as pay,rush (default: all)")
     args = parser.parse_args()
 
-    codes = missions(args.only)
-    if not codes:
+    found = missions(args.only, args.modes and set(m.strip() for m in args.modes.split(",")))
+    if not found:
         sys.exit("no maps")
 
-    shared = [(n, read(os.path.join(SCRIPTS, n + ".lua"))) for n in ("objectivepayload", "payload_mission")]
-    per_mission = [(c + "_pay", mission_source(c)) for c in codes]
-    listing = "PAYLOAD_MISSIONS = { %s }\n" % ", ".join('"%s"' % c for c in codes)
+    shared = [(n, read(os.path.join(SCRIPTS, n + ".lua"))) for n in SHARED]
+    per_mission = [("%s_%s" % (c, m), mission_source(c, m)) for c, m in found]
+    listing = "CUSTOMMODE_MISSIONS = { %s }\n" % ", ".join('{ "%s", "%s" }' % cm for cm in found)
     addme = listing.encode("ascii") + read(os.path.join(SCRIPTS, "addme.lua"))
 
     if args.luac:
@@ -117,10 +131,13 @@ def main():
     with open(os.path.join(lvl_dir, "mission.lvl"), "wb") as f:
         f.write(mission_lvl)
 
-    recording = [c for c in codes if re.search(rb"track\s*=\s*\{\s*\}", read(os.path.join(MAPS, c + ".lua")))]
-    print("built %s with %d missions: %s" % (root, len(codes), ", ".join(c + "_pay" for c in codes)))
+    print("built %s with %d missions" % (root, len(found)))
+    for mode in sorted(set(m for _, m in found)):
+        print("  %s: %s" % (mode, ", ".join(c for c, m in found if m == mode)))
+    recording = [c for c, m in found
+                 if m == "pay" and re.search(rb"track\s*=\s*\{\s*\}", read(map_path(c, m)))]
     if recording:
-        print("no track yet (these record one): " + ", ".join(recording))
+        print("payload maps with no track yet (these record one): " + ", ".join(recording))
 
 
 if __name__ == "__main__":

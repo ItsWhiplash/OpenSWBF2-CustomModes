@@ -72,6 +72,9 @@ not a copy of the stock Hoth map, and it builds and installs the same way as Gro
 
 ## Building it with the Mod Tools (on Windows)
 
+`install_maps.bat generate`, then munge, then `install_maps.bat copy` does this for both maps (see
+[the start page](../README.md)). Step by step:
+
 This part needs the Windows-only SWBF2 Mod Tools; the generator itself runs anywhere.
 
 1. Install the SWBF2 Mod Tools.
@@ -121,5 +124,8 @@ that match the files. With `--luac` it also checks the mission scripts compile.
 - **Looks.** The models have one generated plating texture each, and simple glowing materials.
   The terrain textures are simple generated ones, easy to swap for stock ones. The point lights
   follow WorldEdit's light format, but how bright they look in the game needs a look in a match.
-- **The custom modes** (Payload, Rush and so on) are built on stock maps' Conquest scripts. They
-  don't run on this map yet; that's a follow-up.
+- **The custom modes** run on both maps: `modes.py` writes their settings into
+  `custommodes/maps` (Payload's tracks follow the generated terrain), and the CUSTOMMODES AddOn
+  runs each map's Conquest script from the map's own AddOn. That's why the scripts load their
+  world by its path in the AddOn folder (`..\..\AddOn\GTS\Data\_lvl_pc\GTS\GTS.lvl`)
+  rather than `dc:`. It relies on the AddOn folders being named `GTS` and `HTH`.

@@ -477,7 +477,9 @@ function ScriptInit()
 	SetMemoryPoolSize("EnergyBar", 400)
 	SetSpawnDelay(10.0, 0.25)
 
-	ReadDataFile("dc:{code}\\\\{code}.lvl", "{code}_conquest")
+	-- the world, by its path in the AddOn folder rather than "dc:", so the custom modes
+	-- (another AddOn) can run this script too
+	ReadDataFile("..\\\\..\\\\AddOn\\\\{code}\\\\Data\\\\_lvl_pc\\\\{code}\\\\{code}.lvl", "{code}_conquest")
 	SetDenseEnvironment("false")
 
 	SetAttackingTeam(ATT)
@@ -520,6 +522,10 @@ def build(out_dir, code="HTH"):
     for name, data in make_textures(code).items():
         put(msh_dir, name, data)
     put(script_dir, "%sg_con.lua" % code, mission_script(code))
+    import modes
+    for rel, text in modes.addon_files(code, "g", "Hoth").items():
+        os.makedirs(os.path.join(root, os.path.dirname(rel)), exist_ok=True)
+        put(root, rel, text)
     return h, t, w, root
 
 

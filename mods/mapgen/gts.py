@@ -492,7 +492,9 @@ function ScriptInit()
 	SetMemoryPoolSize("EnergyBar", 300)
 	SetSpawnDelay(10.0, 0.25)
 
-	ReadDataFile("dc:{code}\\\\{code}.lvl", "{code}_conquest")
+	-- the world, by its path in the AddOn folder rather than "dc:", so the custom modes
+	-- (another AddOn) can run this script too
+	ReadDataFile("..\\\\..\\\\AddOn\\\\{code}\\\\Data\\\\_lvl_pc\\\\{code}\\\\{code}.lvl", "{code}_conquest")
 	SetDenseEnvironment("false")
 	AddDeathRegion("deathregion")
 
@@ -546,6 +548,10 @@ def build(out_dir, code="GTS"):
         put(msh_dir, name, data)
     for era in ("c", "g"):
         put(script_dir, "%s%s_con.lua" % (code, era), mission_script(code, era))
+    import modes
+    for rel, text in modes.addon_files(code, "cg", "Ground to Space").items():
+        os.makedirs(os.path.join(root, os.path.dirname(rel)), exist_ok=True)
+        put(root, rel, text)
     return h, t, w, root
 
 

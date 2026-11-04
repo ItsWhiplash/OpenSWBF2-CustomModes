@@ -1,0 +1,68 @@
+name: custom modes
+
+# Tests the custom modes and the map generator (mods/), then builds them as downloads: the
+# CUSTOMMODES AddOn (normal and quick-test), both generated maps' Mod Tools folders, and the map
+# previews. Find them under the run's "Artifacts".
+on:
+  push:
+    paths:
+      - "mods/**"
+      - "data/scripts/mission/**"
+      - "src/LuaFL/**"
+      - "tools/luac_host.cpp"
+      - ".github/workflows/custommodes.yml"
+  pull_request:
+    paths:
+      - "mods/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Python packages
+        run: pip install numpy matplotlib
+
+      - name: Tests
+        run: mods/custommodes/tests/run_tests.sh
+
+      - name: Build
+        run: |
+          python mods/custommodes/build.py --out dist/addon
+          python mods/custommodes/build.py --quick --out dist/addon-quick
+          python mods/mapgen/gts.py --out dist/maps --preview
+          python mods/mapgen/hoth.py --out dist/maps --preview
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CUSTOMMODES
+          path: dist/addon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CUSTOMMODES-quick-test
+          path: dist/addon-quick
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: maps
+          path: |
+            dist/maps/data_GTS
+            dist/maps/data_HTH
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: map-previews
+          path: |
+            dist/maps/preview
+            dist/maps/preview_hth

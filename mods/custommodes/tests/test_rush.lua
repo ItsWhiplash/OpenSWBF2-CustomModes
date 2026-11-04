@@ -154,3 +154,12 @@ test("rush: lockCaptured off", function()
 	Take("cp3") Take("cp9") Take("cp4")
 	check(r.current == 2 and not Open("cp3") and not Open("cp4"), "but a fallen stage stays locked")
 end)
+
+test("quick test settings", function()
+	gCustomModeQuick = true
+	local r = StartRush()
+	gCustomModeQuick = nil
+	check(r.attackerTickets == 30 and Mock.reinforcements[1] == 30, "a quick build shrinks the mode (30 lives)")
+	local normal = StartRush()
+	check(normal.attackerTickets == 100, "a normal build doesn't")
+end)

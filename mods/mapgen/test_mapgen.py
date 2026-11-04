@@ -168,7 +168,8 @@ def test_world(out, luac):
     for era in ("c", "g"):
         path = os.path.join(scripts, "GTS%s_con.lua" % era)
         text = open(path).read()
-        check('ReadDataFile("dc:GTS\\\\GTS.lvl", "GTS_conquest")' in text, "GTS%s_con loads the world" % era)
+        check('ReadDataFile("..\\\\..\\\\AddOn\\\\GTS\\\\Data\\\\_lvl_pc\\\\GTS\\\\GTS.lvl", "GTS_conquest")' in text,
+              "GTS%s_con loads the world from its AddOn folder" % era)
         check(all('name = "%s"' % p[0] in text for p in gts.GROUND_POSTS + gts.SHIP_POSTS), "every post in conquest")
         if luac:
             r = subprocess.run([luac, "-o", os.devnull, path], capture_output=True, text=True)
@@ -220,6 +221,19 @@ def test_hoth(out, luac):
               os.path.exists(os.path.join(root, "Worlds", "HTH", "odf", "hth_%s.odf" % kind)), "Hoth: %s model" % kind)
 
 
+def test_mode_configs():
+    import modes
+    stale = [path for (mode, code), text in modes.mode_configs().items()
+             for path in [os.path.join(modes.MODES_DIR, mode, code + ".lua")]
+             if not os.path.exists(path) or open(path).read() != text]
+    check(not stale, "the custom modes' settings for the generated maps are current (rerun modes.py): %s" % stale)
+    files = modes.addon_files("GTS", "cg", "Ground to Space")
+    check('AddDownloadableContent("GTS", "GTSc_con", 4)' in files[os.path.join("addme", "addme.lua")],
+          "the map's addme registers its Conquest")
+    check('"GTSc_con"' in files[os.path.join("Common", "mission.req")] and
+          os.path.join("Common", "mission", "GTSg_con.req") in files, "and its mission build lists")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--luac")
@@ -227,6 +241,7 @@ def main():
     args = parser.parse_args()
     test_terrain(args.worldedit_sample)
     test_shapes()
+    test_mode_configs()
     test_ship()
     with tempfile.TemporaryDirectory() as tmp:
         test_world(tmp, args.luac)

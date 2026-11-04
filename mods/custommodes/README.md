@@ -45,7 +45,8 @@ themselves.
 
 ## Install
 
-Build the AddOn folder (Python 3, any OS):
+On Windows, `mods\install.bat` does all of this in one go, with your game's text (see
+[the start page](../README.md)). By hand: build the AddOn folder (Python 3, any OS):
 
 ```bash
 python mods/custommodes/build.py

@@ -150,6 +150,8 @@ def main():
     parser.add_argument("--gamedata", help="your game's GameData folder: also copies its text into the "
                         "addon's core.lvl (see README.md, On-screen text)")
     parser.add_argument("--dump-keys", action="store_true", help="print the text keys as Lua, for the tests")
+    parser.add_argument("--quick", action="store_true", help="a quick-test build: every mode shrunk (short timers, "
+                        "small waves, few lives) to check it in a few minutes; see PLAYTEST.md")
     args = parser.parse_args()
 
     sys.path.insert(0, HERE)
@@ -167,6 +169,8 @@ def main():
         sys.exit("no maps")
 
     shared = [(n, read(os.path.join(SCRIPTS, n + ".lua"))) for n in SHARED]
+    if args.quick:
+        shared[0] = (shared[0][0], b"gCustomModeQuick = true\n" + shared[0][1])
     per_mission = [("%s_%s" % (c, m), mission_source(c, m)) for c, m in found]
     listing = "CUSTOMMODE_MISSIONS = { %s }\n" % ", ".join('{ "%s", "%s" }' % cm for cm in found)
     addme = listing.encode("ascii") + read(os.path.join(SCRIPTS, "addme.lua"))

@@ -68,7 +68,7 @@ function ScriptCB_DoFile(name)
 	if Mock.ran[name] then return end
 	local f = Mock.files[name]
 	assert(f, "ScriptCB_DoFile: no script " .. name)
-	if name == "tat2g_con" then
+	if string.find(name, "_con$") then
 		assert(Mock.stockLoaded, "stock mission run before its lvl was read")
 	end
 	Mock.ran[name] = 1
@@ -371,8 +371,9 @@ function AddDeathRegion(r) Mock.Record("AddDeathRegion", r) end
 function Mock.ReadDataFile(file, ...)
 	table.insert(Mock.reads, file)
 	Mock.Record("ReadDataFile", file, arg[1])
-	if file == ".\\mission.lvl" and arg[1] == "tat2g_con" then
+	if string.find(file, "mission%.lvl$") and type(arg[1]) == "string" and string.find(arg[1], "_con$") then
 		Mock.stockLoaded = true
+		Mock.missionLvl = file
 	end
 	-- like game_interface.lua: once ingame.lvl loads, ReadDataFile is wrapped
 	if file == "ingame.lvl" and not RetailReadDataFile then

@@ -29,10 +29,30 @@ function CustomMode_Say(key, team)
 end
 
 -- settings the loader uses itself; the rest go to the objective
-local LoaderKeys = { base = 1, extraData = 1, memoryPools = 1, attackers = 1, objectiveScript = 1, objectiveClass = 1 }
+local LoaderKeys = { base = 1, baseLvl = 1, extraData = 1, memoryPools = 1, attackers = 1, objectiveScript = 1,
+	objectiveClass = 1 }
+
+-- Quick test (build.py --quick sets gCustomModeQuick): every mode shrunk to check it in a few
+-- minutes. Spawn windows stay over the engine's 15 s multiplayer spawn cycle.
+CustomModeQuick = {
+	ObjectivePayload = { timeLimit = 180, baseSpeed = 4.0, speedPerPusher = 1.0, maxSpeed = 8.0, rollbackDelay = 10 },
+	ObjectiveRush = { attackerTickets = 30, ticketsPerCapture = 10 },
+	ObjectiveHorde = { firstWave = 4, perWave = 2, firstBreak = 10, breakTime = 8, bossEvery = 2, startCredits = 300 },
+	ObjectiveSnD = { setupTime = 16, roundTime = 60, plantTime = 3, bombTime = 15, defuseTime = 4, roundsToWin = 2,
+		halftime = 1, roundEndTime = 4 },
+	ObjectiveInfiltration = { spawnWindow = 16, alarmTime = 20, alarmTimePerLevel = 5, quietGarrison = 3,
+		alarmGarrison = 6, targetCount = 2 },
+}
 
 function CustomModeMission(cfg)
 	gCustomModeConfig = cfg
+	if gCustomModeQuick and CustomModeQuick[cfg.objectiveClass or ""] then
+		local k, v
+		for k, v in pairs(CustomModeQuick[cfg.objectiveClass]) do
+			cfg[k] = v
+		end
+		print("OpenSWBF2 custom mode: QUICK TEST settings")
+	end
 	local base = cfg.base
 	assert(base, "CustomModeMission needs base, the stock mission to build on (e.g. \"tat2g_con\")")
 	assert(cfg.objectiveScript and cfg.objectiveClass, "CustomModeMission needs objectiveScript and objectiveClass")
@@ -88,8 +108,9 @@ function CustomModeMission(cfg)
 
 	function ours.ScriptPreInit()
 		-- ".\\mission.lvl" is the game's own mission.lvl: plain "mission.lvl" means this
-		-- addon's while one of its missions is loading
-		ReadDataFile(".\\mission.lvl", base)
+		-- addon's while one of its missions is loading. A map from another addon (made with
+		-- mods/mapgen) gives its own, such as "..\\..\\AddOn\\GTS\\Data\\_lvl_pc\\mission.lvl"
+		ReadDataFile(cfg.baseLvl or ".\\mission.lvl", base)
 		ScriptCB_DoFile(base)
 		baseFns.ScriptPreInit = ScriptPreInit
 		baseFns.ScriptInit = ScriptInit

@@ -131,6 +131,34 @@ test("infiltration: extraction", function()
 	check(Mock.victory == 1, "a survivor at extraction for 5 s: mission complete")
 end)
 
+test("infiltration: rides and extraction height", function()
+	local inf = StartInf({ rideClass = "imp_fly_tiefighter", rides = { { 0, 0, -5 }, { 6, 0, -5 } },
+		escapeRides = { { 0, 0, 100 }, { 0, 0, 300 } }, extraction = "cp6", extractHeight = 10 })
+	check(Mock.Count("CreateEntity", "imp_fly_tiefighter") == 2 and Team("infil_ride_1") == 1,
+		"rides are made for the squad at the start")
+	local plan = inf:EscapePlan({ { 0, 0, 90 }, { 2, 0, 110 }, { 0, 0, 280 } })
+	check(table.getn(plan) == 3 and plan[1][3] == 100 and plan[2][1] == 12 and plan[3][3] == 300,
+		"escape rides: one per survivor at the nearest spot, set out apart")
+	local human = Populate()
+	Insert(inf)
+	local squad, j = Alive(1)
+	for j = 1, table.getn(squad) do if squad[j] ~= human then Mock.KillChar(squad[j], nil) end end
+	Mock.MoveTo(human, 0, 0, 290)
+	for j = 1, 5 do Blow(j) end
+	Run(1)
+	local ride = Mock.entities["infil_ride_3"]
+	check(ride and ride.z == 300 and Mock.entities["infil_ride_4"] == nil and Team("infil_ride_3") == 1,
+		"when the targets are down, a ride appears by the survivor")
+	local cp6 = Mock.entities["cp6"]
+	local function Under() Mock.MoveTo(human, cp6.x, cp6.y + 50, cp6.z) end
+	Run(7, Under)
+	check(Mock.victory == nil, "under or over the extraction point doesn't count, with extractHeight")
+	Mock.EnterVehicle(human, "infil_ride_3")
+	ride.x, ride.y, ride.z = cp6.x, cp6.y + 4, cp6.z
+	Run(8)
+	check(Mock.victory == 1, "landing the ride at extraction counts (its position, not the pilot's)")
+end)
+
 test("infiltration: squad wipe", function()
 	local inf = StartInf()
 	local human = Populate()

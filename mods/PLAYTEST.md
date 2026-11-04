@@ -98,6 +98,10 @@ When you're done, run `mods\install.bat` again for the normal build.
       into the hangar and capture it.
 - [ ] Rush on Hoth plays as a push from the south up to the base hangar (the cruiser stays the
       Empire's).
+- [ ] Infiltration: you spawn on the cruiser's deck with TIEs beside you. Fly down, and the
+      snowspeeders are marked by the trenches, shield generator, ion cannon and base. When the
+      last one blows, TIEs appear near you: fly back and land in the hangar by Cruiser Control.
+      Standing on the snow under the ship mustn't count. (No bot squadmates here: they can't fly.)
 - [ ] Payload drives the cart up the middle, through the ridge pass and the trench.
 
 **Both:**

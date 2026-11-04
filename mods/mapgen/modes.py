@@ -100,9 +100,28 @@ def hth_modes(era):
         "horde": dict(common, lastStand="cp1", hordeSpawns=["cp4", "cp3"], shopPads=["cp2"]),
         # plant at the shield generator or the ion cannon
         "snd": dict(common, attackerSpawn="cp1", defenderSpawn="cp9", sites=["cp7", "cp8"]),
-        "inf": dict(common, insertion="cp1", extraction="cp1", idlePosts=["cp10", "cp11"],
-                    targets=[{"post": "cp5"}, {"post": "cp6"}, {"post": "cp7"}, {"post": "cp8"}, [0.0, 41.0, 1100.0]]),
+        "inf": hth_infiltration(common, h),
     }
+
+
+def hth_infiltration(common, h):
+    """Infiltration on Hoth: an Imperial squad starts on the cruiser's deck, flies TIE fighters
+    down, destroys the Rebels' parked snowspeeders, and flies back up to hold Cruiser Control.
+    No bot squadmates: bots can't fly, so they'd be stuck on the deck."""
+    import hoth
+
+    def ground(x, z, lift=1.5):
+        return [round(x, 1), round(hoth.height_at(h, x, z) + lift, 1), round(z, 1)]
+    # TIEs along the back of the hangar, clear of its fighter spawns and posts
+    rides = [[round(v, 1) for v in hoth.ship_point(dx, 1.5, 0.0)] for dx in (-75.0, -45.0, -15.0, 15.0, 45.0, 75.0)]
+    # when the speeders are down: TIEs on open snow south of the trench and near the shield
+    # generator, ion cannon and base, nearest the survivors
+    escape = [ground(-430, 560), ground(430, 560), ground(-620, 880), ground(700, 900), ground(0, 980)]
+    return dict(common, insertion="cp10", extraction="cp11", squadBots=0,
+                rideClass="imp_fly_tiefighter", rides=rides, escapeRides=escape,
+                extractRadius=20.0, extractHeight=15.0,
+                targetClass="all_fly_snowspeeder", memoryPools={"EntityFlyer": 16},
+                targets=[{"post": "cp5"}, {"post": "cp6"}, {"post": "cp7"}, {"post": "cp8"}, ground(0, 1100)])
 
 
 MAP_FN = {"pay": "PayloadMap", "rush": "RushMap", "horde": "HordeMap", "snd": "SnDMap", "inf": "InfiltrationMap"}

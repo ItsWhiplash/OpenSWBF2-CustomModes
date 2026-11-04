@@ -39,11 +39,20 @@ ObjectiveInfiltration = Objective:New
 	targetClasses = nil,          -- { imp = "...", all = "...", ... } by side (InfiltrationMap fills it)
 	commandPosts = nil,
 
+	-- rides: vehicles made for the squad (to start on a ship, say, and fly down)
+	rides = nil,                  -- { { x, y, z }, ... }: made at the start, by the insertion
+	escapeRides = nil,            -- { { x, y, z }, ... }: when the targets are down, one per survivor
+	                              -- at the spot nearest them, to get back to extraction
+	rideClass = nil,              -- the rides' vehicle
+	rideSpacing = 12,             -- metres between rides at one spot
+
 	-- the squad
 	spawnWindow = 20,             -- seconds to spawn (longer than the engine's 15 s multiplayer cycle)
 	squadBots = 3,                -- bot squadmates on top of the humans
 	extractRadius = 8,
 	extractTime = 5,              -- seconds a survivor must stay at extraction
+	extractHeight = nil,          -- metres above or below the point that count (nil: any height;
+	                              -- set it when the point is on a ship, over the ground)
 	wipeGrace = 2,
 
 	-- the garrison and the alarm (level = alarms so far)
@@ -158,6 +167,48 @@ end
 --=============================
 -- Engine side
 --=============================
+
+-- positions: { { x, y, z }, ... } of the survivors. The escape rides' spots: for each survivor
+-- the nearest of escapeRides, the second and later ones at a spot set out rideSpacing apart.
+function ObjectiveInfiltration:EscapePlan(positions)
+	local spots, out, used = self.escapeRides or {}, {}, {}
+	if table.getn(spots) == 0 then return out end
+	local i, j
+	for i = 1, table.getn(positions) do
+		local p, best, bestD = positions[i], 1
+		for j = 1, table.getn(spots) do
+			local dx, dz = spots[j][1] - p[1], spots[j][3] - p[3]
+			local d = dx * dx + dz * dz
+			if not bestD or d < bestD then best, bestD = j, d end
+		end
+		local k = used[best] or 0
+		used[best] = k + 1
+		local s = spots[best]
+		table.insert(out, { s[1] + k * self.rideSpacing, s[2], s[3] })
+	end
+	return out
+end
+
+-- Where a squad member is: their vehicle's position when they're in one.
+local function MemberPosition(c)
+	local vehicle = GetCharacterVehicle and GetCharacterVehicle(c)
+	if vehicle then return GetWorldPosition(vehicle) end
+	local unit = GetCharacterUnit(c)
+	if unit and IsObjectAlive(unit) then return GetWorldPosition(unit) end
+end
+
+function ObjectiveInfiltration:MakeRides(spots)
+	local i
+	for i = 1, table.getn(spots) do
+		self.rideCount = (self.rideCount or 0) + 1
+		local p, name = spots[i], "infil_ride_" .. self.rideCount
+		if CreateEntity(self.rideClass, CreateMatrix(0, 0, 1, 0, p[1], p[2], p[3]), name) then
+			SetObjectTeam(name, self.squadTeam)
+		else
+			Log("could not create ride " .. self.rideCount .. " (" .. tostring(self.rideClass) .. ")")
+		end
+	end
+end
 
 function ObjectiveInfiltration:AllPosts()
 	local names, seen = {}, {}
@@ -287,7 +338,17 @@ function ObjectiveInfiltration:Poll()
 				self.extractOpen = true
 				MapAddEntityMarker(self.extraction, "hud_objective_icon_circle", 4.0, self.squadTeam, "YELLOW", true, true, true)
 				Log("all targets down: get to " .. self.extraction)
-				CustomMode_Say("inf.extract", self.squadTeam)
+				if self.escapeRides and self.rideClass then
+					local where, j = {}
+					for j = 0, GetTeamSize(self.squadTeam) - 1 do
+						local x, y, z = MemberPosition(GetTeamMember(self.squadTeam, j))
+						if x then table.insert(where, { x, y, z }) end
+					end
+					self:MakeRides(self:EscapePlan(where))
+					CustomMode_Say("inf.extract.ride", self.squadTeam)
+				else
+					CustomMode_Say("inf.extract", self.squadTeam)
+				end
 			end
 			self:Alarm("a target blew")
 		end
@@ -312,8 +373,11 @@ function ObjectiveInfiltration:Poll()
 			local c = GetTeamMember(self.squadTeam, i)
 			local unit = c and GetCharacterUnit(c)
 			if unit and IsObjectAlive(unit) then
-				local x, y, z = GetWorldPosition(unit)
-				if x and (x - px) * (x - px) + (z - pz) * (z - pz) <= r2 then there = true end
+				local x, y, z = MemberPosition(c)
+				if x and (x - px) * (x - px) + (z - pz) * (z - pz) <= r2
+					and (not self.extractHeight or math.abs(y - py) <= self.extractHeight) then
+					there = true
+				end
 			end
 		end
 		if there then
@@ -391,6 +455,7 @@ function ObjectiveInfiltration:Start()
 		end
 	end
 	assert(table.getn(self.targetNames) > 0, "infiltration: no targets could be created")
+	if self.rides and self.rideClass then self:MakeRides(self.rides) end
 	OnCharacterEnterVehicle(function(character, vehicle)
 		local name = GetEntityName(vehicle)
 		if name and string.sub(name, 1, 13) == "infil_target_" then ExitVehicle(character) end
@@ -409,7 +474,7 @@ function ObjectiveInfiltration:Start()
 	StartTimer(self.clock)
 	ShowTimer(self.clock)
 	self:SetPosture(false)
-	CustomMode_Say("inf.insert", self.squadTeam)
+	CustomMode_Say(self.rides and self.rideClass and "inf.insert.ride" or "inf.insert", self.squadTeam)
 
 	local poll = CreateTimer("infilPoll")
 	SetTimerValue(poll, self.pollInterval)

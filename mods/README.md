@@ -55,7 +55,7 @@ five custom modes, laid out for the map:
 | Rush | The valley, then the mesas, and last the ship's hangar | The outposts and ridge, then the trenches and shield, and last the cannon and base |
 | Horde | Hold South Landing | The Empire holds its landing |
 | Search & Destroy | The two mesas are the sites | The shield generator and the ion cannon are the sites |
-| Infiltration | Four tanks by the valley posts | Tanks by the trenches, shield, cannon and the base |
+| Infiltration | Four tanks by the valley posts | As the Empire: start on the cruiser, fly TIEs down, destroy five parked snowspeeders, and fly back up to Cruiser Control |
 
 ## 3. A server
 

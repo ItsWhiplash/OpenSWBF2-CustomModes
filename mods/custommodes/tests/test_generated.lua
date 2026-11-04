@@ -92,8 +92,15 @@ for _, code in ipairs({ "gtsc", "gtsg", "hthg" }) do
 		local f = StartGenerated("inf", code)
 		check(table.getn(f.targetNames) == table.getn(f.targetSpots) and table.getn(f.targetNames) >= 4, "Infiltration: every target made")
 		if map ~= "GTS" then
-			check(Mock.entities["cp10"].team == 0 and Mock.entities["cp11"].team == 0 and Mock.entities["cp5"].team == f.garrisonTeam,
-				"Infiltration on Hoth: the cruiser's posts are out of play, the ground's are the garrison's")
+			check(f.insertion == "cp10" and Mock.entities["cp10"].team == f.squadTeam and Mock.entities["cp11"].team == 0
+				and Mock.entities["cp5"].team == f.garrisonTeam,
+				"Infiltration on Hoth: the squad starts on the cruiser and extracts at its control post")
+			check(Mock.Count("CreateEntity", "all_fly_snowspeeder") == 5 and Mock.Count("CreateEntity", "imp_fly_tiefighter") == 6,
+				"Infiltration on Hoth: five snowspeeder targets, and a TIE each to fly down")
+			local r = Mock.entities["infil_ride_1"]
+			local cp10 = Mock.entities["cp10"]
+			check(math.abs(r.y - cp10.y) < 3 and math.abs(r.z - cp10.z) < 80 and math.abs(r.x - cp10.x) < 140,
+				"Infiltration on Hoth: the TIEs are on the cruiser's deck")
 		end
 	end)
 end

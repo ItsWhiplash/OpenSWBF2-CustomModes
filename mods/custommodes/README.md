@@ -406,6 +406,10 @@ InfiltrationMap("tat2g", {
 | `targetClass` | the garrison's tank | Any vehicle class. Load it with `extraData = { { "SIDE\\xxx.lvl", "class" } }` if the map doesn't. |
 | `spawnWindow` / `squadBots` | `20` / `3` | Seconds to spawn, and bot squadmates on top of the humans. |
 | `extractRadius` / `extractTime` | `8` / `5` | Metres and seconds at extraction. |
+| `extractHeight` | any height | Metres above or below the extraction point that count. Set it when the point is on a ship, so standing on the ground below doesn't count. |
+| `idlePosts` | none | Posts out of play (nobody's), such as a ship's the squad never uses. |
+| `rideClass` / `rides` | none | Vehicles made for the squad at the start, at `{ x, y, z }` spots: to start on a ship and fly down, say. |
+| `escapeRides` / `rideSpacing` | none / `12` | When the last target falls, one more ride per survivor, at whichever of these spots is nearest them (several at one spot, set out this many metres apart). |
 | `quietGarrison` / `quietPerLevel` | `6` / `3` | Guards when quiet, and more after each alarm. |
 | `alarmGarrison` / `alarmPerLevel` | `14` / `4` | Guards in the first alarm, and more in each later one. |
 | `alarmTime` / `alarmTimePerLevel` | `60` / `15` | How long alarms last. |

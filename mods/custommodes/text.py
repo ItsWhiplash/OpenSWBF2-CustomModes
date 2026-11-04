@@ -81,11 +81,13 @@ def table():
 
     # Infiltration
     t["custommodes.inf.insert"] = "Insert now: one life each. Destroy every target."
+    t["custommodes.inf.insert.ride"] = "Insert now: take a vehicle in. One life each. Destroy every target."
     t["custommodes.inf.in"] = "The squad is in. Stay quiet."
     t["custommodes.inf.alarm"] = "ALARM! Reinforcements inbound!"
     t["custommodes.inf.calm"] = "The garrison is standing down."
     for n in range(0, 21):
         t["custommodes.inf.left.%d" % n] = "Target destroyed: %d left." % n
     t["custommodes.inf.extract"] = "All targets destroyed! Get to the extraction point."
+    t["custommodes.inf.extract.ride"] = "All targets destroyed! Vehicles are waiting nearby: get back to extraction."
     t["custommodes.inf.extracting"] = "Extracting... hold the point."
     return t

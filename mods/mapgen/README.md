@@ -27,8 +27,8 @@ This writes `mods/mapgen/out/data_GTS` (a mod-tools map folder), plus preview im
 |---|---|
 | Terrain | 256 × 256 points 8 m apart: 2048 m across, inside a ring of mountains. The boundary is a 900 m circle. |
 | Valley | Sand flats with dunes. A winding canyon 28 m deep crosses the middle, with a land bridge at the centre. |
-| Mesas | West (45 m), east (55 m) and a north-west lookout (70 m), each with a ramp up. |
-| The ship | A 660 m capital ship hull made of blocks, hanging with its hangar deck 380 m up over the north of the valley. Its 160 × 30 m hangar bay is open on the south side, facing the valley, for fighters to fly in. |
+| Mesas | West (45 m), east (55 m) and a north-west lookout (70 m), each with a ramp up and cliffs banded in sandstone strata. Sandstone spires, boulders and dune ripples cover the valley floor. |
+| The ship | A 690 m capital ship hanging with its hangar deck 380 m up over the north of the valley. It has a wedge hull lofted through cross-sections (bevelled sides, a raised spine), a command tower with a wide bridge, sensor domes and a mast, three engine nacelles with glowing exhausts, and turrets and plating across the top. Under the hull, a hangar pod 180 m wide is open to the valley for fighters to fly in, with light strips on its ceiling and four point lights inside. |
 | Command posts | cp1 South Landing (attackers), cp2 West Mesa, cp3 Canyon Bridge (neutral), cp4 East Mesa and cp5 Shadow of the Ship on the ground. cp6 Hangar and cp7 Hangar Control are on the ship's deck. |
 | Getting up | Fighters spawn at South Landing and under the ship (cp5). Fly into the hangar, or spawn on the deck once your side holds a ship post. |
 | Bots | A navigation graph over the walkable valley: 573 hubs every 64 m, and about 1,000 links where the ground is gentle (soldier-only where it's steep). The deck has its own hubs. |
@@ -57,8 +57,15 @@ the rest:
 | Bots | A navigation graph of about 1,300 hubs and 2,500 links over the walkable plain, with hubs in the hangar joined to the terrace outside. |
 | Script | `HTHg_con.lua`: Conquest with the stock Hoth snow units, Vader and Luke, walkers (`AddWalkerType`), and `SetWorldExtents(2200)`. |
 
-The structures are models made from blocks, like Ground to Space's ship: `hth_base`,
-`hth_shieldgen`, `hth_ioncannon` and `hth_bunker`. They share a generated plating texture, and
+The structures are generated models, like Ground to Space's ship:
+- `hth_base`: a bunker under a vaulted roof, with its blast doors drawn back, a lit hangar and a
+  dish antenna;
+- `hth_shieldgen`: a dome on a drum with a glowing ring, a mast and a dish;
+- `hth_ioncannon`: a ball turret on a pedestal, with a long raised barrel and a glowing muzzle;
+- `hth_bunker`: round gun turrets.
+
+The hangar, the shield generator and the ion cannon also have point lights, and the mountains
+keep their snow except on the sheerest faces. They share a generated plating texture, and
 the snow, packed snow, ice and rock terrain textures are generated too. The layout is original,
 not a copy of the stock Hoth map, and it builds and installs the same way as Ground to Space
 (with the code `HTH`).
@@ -88,6 +95,10 @@ checked against it:
   have exactly the size its writer gives.
 - **Models (`msh.py`)** port WorldEdit's `.msh` writer, shaped like its "blocks" export: a root
   node, a geometry mesh and a hidden collision mesh, plus a prop `.odf` and `.msh.option`.
+  Shapes (`shapes.py`: boxes, cylinders, cones, domes, tubes and lofted hulls) are made in game
+  coordinates, facing outward. The writer mirrors Z into WorldEdit's model space and reverses
+  each triangle, so the result winds the same way as WorldEdit's own cube. The tests check
+  both.
 - **World files (`world.py`)** follow WorldEdit's `save.cpp` line for line. That includes the
   Z axis, which WorldEdit flips between its view and the files. Command posts are linked to
   their regions and spawn paths the way its post tool makes them.
@@ -107,8 +118,8 @@ that match the files. With `--luac` it also checks the mission scripts compile.
   one place in `gts.py`.
 - **Bots and the ship.** Ground bots have a navigation graph, but there are no flight paths, so
   AI pilots may not find the hangar. Bots that spawn on the deck do have hubs there.
-- **Looks.** The ship is a block hull with simple plating, and there are no lights inside the
-  hangar yet. The terrain textures are simple generated ones, easy to swap for stock ones in
-  `gts.py`.
+- **Looks.** The models have one generated plating texture each, and simple glowing materials.
+  The terrain textures are simple generated ones, easy to swap for stock ones. The point lights
+  follow WorldEdit's light format, but how bright they look in the game needs a look in a match.
 - **The custom modes** (Payload, Rush and so on) are built on stock maps' Conquest scripts. They
   don't run on this map yet; that's a follow-up.

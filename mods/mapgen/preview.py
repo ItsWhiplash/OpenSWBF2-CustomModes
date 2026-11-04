@@ -1,5 +1,6 @@
-"""Preview images of a generated map: a top-down relief map with the command posts, ship,
-boundary and bot graph, and a 3D view from the south."""
+"""Preview images of a generated map: a top-down relief map (command posts, vehicles, structures,
+boundary and bot graph) and perspective views drawn from the map's own data: the terrain heights
+and the very polygons its models are made of, painted back to front."""
 import math
 import os
 
@@ -8,8 +9,24 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+from matplotlib.collections import PolyCollection  # noqa: E402
+
+import shapes  # noqa: E402
 
 TEAM_COLOURS = {0: "#d9d9d9", 1: "#3b82f6", 2: "#ef4444"}
+
+SAND = np.array([0.80, 0.68, 0.48])
+DIRT = np.array([0.60, 0.46, 0.32])
+ROCK = np.array([0.48, 0.44, 0.40])
+# the three ground colours (flat, slope, cliff); a map can set its own, such as snow
+PALETTE = [SAND, DIRT, ROCK]
+# heights above which the ground turns to rock (start, over)
+ROCK_HEIGHT = (90.0, 60.0)
+# slopes past which it turns to rock (start, over)
+ROCK_SLOPE = (0.55, 0.3)
+SKY_TOP = np.array([0.36, 0.55, 0.82])
+SKY_HORIZON = np.array([0.80, 0.86, 0.93])
+SUN = np.array([0.45, 0.8, 0.4]) / np.linalg.norm([0.45, 0.8, 0.4])
 
 
 def ground_at(h, grid, x, z):
@@ -27,48 +44,63 @@ def hillshade(h, grid, azimuth=315, altitude=40):
     return np.clip(np.sin(alt) * np.cos(slope) + np.cos(alt) * np.sin(slope) * np.cos(az - aspect), 0, 1)
 
 
-def render(h, w, out_dir, ship_boxes, ship_pos, grid=8.0, map_name="Ground to Space", views=None,
-           bay=(-80.0, 80.0, -85.0, 30.0)):
-    """views: (file name, eye, target, title) for perspective images; the default is Ground to Space's."""
+def ground_colours(h, grid):
+    """The terrain's colours, from the same slope and height rules as its textures."""
+    gz, gx = np.gradient(h, grid)
+    slope = np.hypot(gx, gz)
+    rock = np.clip((slope - ROCK_SLOPE[0]) / ROCK_SLOPE[1], 0, 1)
+    rock = np.maximum(rock, np.clip((h - ROCK_HEIGHT[0]) / ROCK_HEIGHT[1], 0, 1))
+    dirt = np.clip((slope - 0.18) / 0.25, 0, 1) * (1 - rock)
+    sand = 1 - rock - dirt
+    return sand[..., None] * PALETTE[0] + dirt[..., None] * PALETTE[1] + rock[..., None] * PALETTE[2]
+
+
+def render(h, w, out_dir, parts, views, grid=8.0, map_name="Map"):
+    """parts: (polygons in world space, colour, glows) for every model; views: (file name, eye,
+    target, title, show markers) for the perspective images."""
     os.makedirs(out_dir, exist_ok=True)
+    paths = [top_down(h, w, out_dir, parts, grid, map_name)]
+    for fname, eye, target, title, markers in views:
+        path = os.path.join(out_dir, fname)
+        perspective(h, grid, parts, w, path, eye, target, title, markers)
+        paths.append(path)
+    return paths
+
+
+def top_down(h, w, out_dir, parts, grid, map_name):
     n = h.shape[0]
     half = n * grid / 2
-    # rows run north to south in file Z (row 0 is +Z), which is the image's top
-    extent = (-half, half, -half + grid, half + grid)
-    paths = []
-
-    # --- top-down
+    extent = (-half, half, -half + grid, half + grid)    # row 0 is the far +Z edge
     fig, ax = plt.subplots(figsize=(10, 10), dpi=110)
     shade = hillshade(h, grid)
-    rgb = ground_colours(h, grid) * (0.35 + 0.65 * shade[..., None])
-    ax.imshow(rgb, extent=extent, origin="upper")
-    # bot graph
+    ax.imshow(ground_colours(h, grid) * (0.35 + 0.65 * shade[..., None]), extent=extent, origin="upper")
     hubs = {name: pos for name, pos, r in w.hubs}
     for name, a, b, flags in w.connections:
         pa, pb = hubs[a], hubs[b]
-        ax.plot([pa[0], pb[0]], [pa[2], pb[2]], color="#22c55e" if flags == 63 else "#a3e635",
-                lw=0.6, alpha=0.6)
-    # boundary
-    bx = [p[0] for p in w.boundary] + [w.boundary[0][0]]
-    bz = [p[1] for p in w.boundary] + [w.boundary[0][1]]
-    ax.plot(bx, bz, "--", color="white", lw=1)
-    # ship outline
-    sx, sy, sz = ship_pos
-    for lo, hi in ship_boxes:
-        ax.add_patch(plt.Rectangle((sx + lo[0], sz + lo[2]), hi[0] - lo[0], hi[2] - lo[2],
-                                   fill=True, facecolor="#94a3b8", edgecolor="#1e293b", alpha=0.35, lw=0.6))
-    # command posts
+        ax.plot([pa[0], pb[0]], [pa[2], pb[2]], color="#22c55e" if flags == 63 else "#a3e635", lw=0.5, alpha=0.45)
+    if w.boundary:
+        bx = [p[0] for p in w.boundary] + [w.boundary[0][0]]
+        bz = [p[1] for p in w.boundary] + [w.boundary[0][1]]
+        ax.plot(bx, bz, "--", color="white", lw=1)
+    # structures: their upward faces, seen from above
+    tops = []
+    for polys, colour, glows in parts:
+        for poly in polys:
+            if shapes.normal(poly)[1] > 0.2:
+                tops.append([(p[0], p[2]) for p in poly])
+    ax.add_collection(PolyCollection(tops, facecolors="#cbd5e1", edgecolors="#334155", linewidths=0.2, alpha=0.9))
     for layer, cls, name, pos, rot, team, props in w.objects:
         if cls == "com_bldg_controlzone":
             label = dict(props).get("Label", name)
-            on_ship = pos[1] - ground_at(h, grid, pos[0], pos[2]) > 15
+            raised = pos[1] - ground_at(h, grid, pos[0], pos[2]) > 15
             ax.scatter([pos[0]], [pos[2]], s=120, c=TEAM_COLOURS[team], edgecolors="black",
-                       marker="^" if on_ship else "o", zorder=5)
-            ax.annotate("%s %s%s" % (name, label, " (ship)" if on_ship else ""), (pos[0], pos[2]),
-                        xytext=(8, 6), textcoords="offset points", fontsize=8, color="white",
-                        bbox=dict(boxstyle="round,pad=0.2", fc="black", alpha=0.55, lw=0))
+                       marker="^" if raised else "o", zorder=5)
+            ax.annotate("%s %s" % (name, label), (pos[0], pos[2]), xytext=(8, 6), textcoords="offset points",
+                        fontsize=8, color="white", bbox=dict(boxstyle="round,pad=0.2", fc="black", alpha=0.55, lw=0))
         elif cls == "com_item_vehicle_spawn":
             ax.scatter([pos[0]], [pos[2]], s=40, c="#facc15", marker="s", edgecolors="black", zorder=5)
+    ax.set_xlim(-half, half)
+    ax.set_ylim(-half + grid, half + grid)
     ax.set_title("%s: top-down (circles: posts, triangles: raised posts, squares: vehicles)" % map_name, fontsize=9)
     ax.set_xlabel("X (m)")
     ax.set_ylabel("Z (m)")
@@ -76,131 +108,85 @@ def render(h, w, out_dir, ship_boxes, ship_pos, grid=8.0, map_name="Ground to Sp
     fig.tight_layout()
     fig.savefig(path)
     plt.close(fig)
-    paths.append(path)
-
-    # --- a perspective view from the south, drawn back to front
-    if views is None:
-        sx, sy, sz = ship_pos
-        views = [("view_3d.png", (520.0, 620.0, -1180.0), (-40.0, 120.0, 220.0),
-                  "Ground to Space: from the south-east, the ship %d m over the valley" % sy),
-                 ("view_hangar.png", (sx + 230.0, sy - 25.0, sz - 470.0), (sx, sy + 12.0, sz - 40.0),
-                  "Ground to Space: a fighter's approach to the hangar's open side")]
-    for fname, eye, target, title in views:
-        path = os.path.join(out_dir, fname)
-        perspective(h, grid, ship_boxes, ship_pos, w, path, eye=eye, target=target, title=title, bay=bay)
-        paths.append(path)
-    return paths
+    return path
 
 
-SAND = np.array([0.80, 0.68, 0.48])
-DIRT = np.array([0.60, 0.46, 0.32])
-ROCK = np.array([0.48, 0.44, 0.40])
-# the three ground colours (flat, slope, cliff); a map can set its own, such as snow
-PALETTE = [SAND, DIRT, ROCK]
-# heights above which the ground turns to rock (start, over)
-ROCK_HEIGHT = (90.0, 60.0)
-
-
-def ground_colours(h, grid):
-    """The terrain's colours, from the same slope and height rules as its textures."""
-    gz, gx = np.gradient(h, grid)
-    slope = np.hypot(gx, gz)
-    rock = np.clip((slope - 0.55) / 0.3, 0, 1)
-    rock = np.maximum(rock, np.clip((h - ROCK_HEIGHT[0]) / ROCK_HEIGHT[1], 0, 1))
-    dirt = np.clip((slope - 0.18) / 0.25, 0, 1) * (1 - rock)
-    sand = 1 - rock - dirt
-    return sand[..., None] * PALETTE[0] + dirt[..., None] * PALETTE[1] + rock[..., None] * PALETTE[2]
-
-
-def perspective(h, grid, ship_boxes, ship_pos, w, path, eye=(520.0, 620.0, -1180.0), target=(-40.0, 120.0, 220.0),
-                title="Ground to Space", bay=(-80.0, 80.0, -85.0, 30.0)):
-    from matplotlib.collections import PolyCollection
+def perspective(h, grid, parts, w, path, eye, target, title, markers=True):
     n = h.shape[0]
-    eye = np.array(eye)
-    fwd = np.array(target) - eye
+    eye = np.array(eye, float)
+    fwd = np.array(target, float) - eye
     fwd /= np.linalg.norm(fwd)
     right = np.cross([0.0, 1.0, 0.0], fwd)
     right /= np.linalg.norm(right)
     up = np.cross(fwd, right)
-    sun = np.array([0.45, 0.8, 0.4])
-    sun /= np.linalg.norm(sun)
     focal = 1.25
+    far = 1.6 * n * grid
     polys, colours, depths = [], [], []
 
-    def add(quad, colour, normal):
-        rel = np.asarray(quad) - eye
+    def add(pts, colour, nrm, glows=False):
+        rel = np.asarray(pts, float) - eye
         z = rel @ fwd
-        if np.any(z < 5):
+        if np.any(z < 2):
             return
         sx = (rel @ right) / z * focal
         sy = (rel @ up) / z * focal
-        if np.all(np.abs(sx) > 1.8) or np.all(np.abs(sy) > 1.2):
+        if np.all(np.abs(sx) > 1.8) or np.all(np.abs(sy) > 1.1):
             return
-        light = 0.45 + 0.7 * max(0.0, float(np.dot(normal, sun)))
-        # haze with distance
-        haze = min(1.0, float(z.mean()) / 3400.0)
-        c = np.clip(np.asarray(colour) * light * (1 - haze * 0.55) + np.array([0.70, 0.78, 0.88]) * haze * 0.55, 0, 1)
+        if glows:
+            c = np.asarray(colour, float)
+        else:
+            light = 0.42 + 0.68 * max(0.0, float(np.dot(nrm, SUN)))
+            c = np.asarray(colour, float) * light
+        haze = min(1.0, float(z.mean()) / far) * 0.6
+        c = np.clip(c * (1 - haze) + SKY_HORIZON * haze, 0, 1)
         polys.append(np.column_stack((sx, sy)))
         colours.append(c)
         depths.append(float(z.mean()))
 
-    step = max(2, n // 128)
+    step = max(1, n // 256)
     col = ground_colours(h, grid)
     for y in range(0, n - step, step):
         for x in range(0, n - step, step):
-            pts = []
-            for yy, xx in ((y, x), (y, x + step), (y + step, x + step), (y + step, x)):
-                pts.append(((xx - n / 2) * grid, h[yy][xx], -(yy - n / 2 + 1) * grid))
+            pts = [((xx - n / 2) * grid, h[yy][xx], -(yy - n / 2 + 1) * grid)
+                   for yy, xx in ((y, x), (y, x + step), (y + step, x + step), (y + step, x))]
             a, b, c = np.array(pts[0]), np.array(pts[1]), np.array(pts[3])
-            normal = np.cross(c - a, b - a)
-            normal /= np.linalg.norm(normal) or 1.0
-            if normal[1] < 0:
-                normal = -normal
-            add(pts, col[y][x], normal)
+            nrm = np.cross(c - a, b - a)
+            nrm /= np.linalg.norm(nrm) or 1.0
+            if nrm[1] < 0:
+                nrm = -nrm
+            add(pts, col[y][x], nrm)
 
-    sx0, sy0, sz0 = ship_pos
-    hull = np.array([0.62, 0.64, 0.68])
-    for lo, hi in ship_boxes:
-        x0, y0, z0 = sx0 + lo[0], sy0 + lo[1], sz0 + lo[2]
-        x1, y1, z1 = sx0 + hi[0], sy0 + hi[1], sz0 + hi[2]
-        faces = [
-            ([(x0, y1, z0), (x1, y1, z0), (x1, y1, z1), (x0, y1, z1)], (0, 1, 0)),
-            ([(x0, y0, z0), (x1, y0, z0), (x1, y0, z1), (x0, y0, z1)], (0, -1, 0)),
-            ([(x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0)], (0, 0, -1)),
-            ([(x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1)], (0, 0, 1)),
-            ([(x0, y0, z0), (x0, y0, z1), (x0, y1, z1), (x0, y1, z0)], (-1, 0, 0)),
-            ([(x1, y0, z0), (x1, y0, z1), (x1, y1, z1), (x1, y1, z0)], (1, 0, 0)),
-        ]
-        for quad, normal in faces:
-            normal = np.array(normal, float)
-            centre = np.mean(quad, axis=0)
-            if np.dot(normal, centre - eye) >= 0:
-                continue                      # facing away
-            # inside the hangar bay: lit warmer, as its lights would
-            local = centre - np.array(ship_pos)
-            inside = bay is not None and bay[0] <= local[0] <= bay[1] and bay[2] <= local[2] <= 0.5 and -0.5 <= local[1] <= bay[3] + 0.5
-            add(quad, np.array([0.95, 0.80, 0.45]) if inside else hull, normal if not inside else -normal * 0 + sun)
+    for model, colour, glows in parts:
+        for poly in model:
+            nrm = np.array(shapes.normal(poly))
+            centre = np.mean(poly, axis=0)
+            if np.dot(nrm, centre - eye) >= 0:
+                continue                          # facing away
+            add(poly, colour, nrm, glows)
 
     order = np.argsort(depths)[::-1]
     fig, ax = plt.subplots(figsize=(14, 8), dpi=110)
-    fig.patch.set_facecolor((0.58, 0.70, 0.86))
-    ax.set_facecolor((0.58, 0.70, 0.86))
+    # sky: horizon colour low, deeper blue overhead
+    grad = np.linspace(0, 1, 256)[:, None]
+    sky = SKY_HORIZON * (1 - grad[..., None]) + SKY_TOP * grad[..., None]
+    ax.imshow(np.repeat(sky, 2, axis=1), extent=(-1.6, 1.6, -0.9, 0.9), origin="lower", aspect="auto", zorder=0)
     ax.add_collection(PolyCollection([polys[i] for i in order], facecolors=[colours[i] for i in order],
-                                     edgecolors="none", antialiased=False))
-    for layer, cls, name, pos, rot, team, props in w.objects:
-        if cls == "com_bldg_controlzone":
-            rel = np.array(pos) + np.array([0, 4, 0]) - eye
-            z = rel @ fwd
-            if z > 5:
-                ax.scatter([(rel @ right) / z * focal], [(rel @ up) / z * focal], s=50,
-                           c=TEAM_COLOURS[team], edgecolors="black", zorder=5)
-                ax.annotate(name, ((rel @ right) / z * focal, (rel @ up) / z * focal), xytext=(5, 5),
-                            textcoords="offset points", fontsize=8, color="white", zorder=6)
+                                     edgecolors=[colours[i] for i in order], linewidths=0.15, zorder=1))
+    if markers:
+        for layer, cls, name, pos, rot, team, props in w.objects:
+            if cls == "com_bldg_controlzone":
+                rel = np.array(pos) + np.array([0, 4, 0]) - eye
+                z = rel @ fwd
+                if z > 5:
+                    px, py = (rel @ right) / z * focal, (rel @ up) / z * focal
+                    ax.scatter([px], [py], s=45, c=TEAM_COLOURS[team], edgecolors="black", zorder=5)
+                    ax.annotate(name, (px, py), xytext=(5, 5), textcoords="offset points", fontsize=8,
+                                color="white", zorder=6)
     ax.set_xlim(-1.6, 1.6)
     ax.set_ylim(-0.9, 0.9)
     ax.set_aspect("equal")
     ax.set_axis_off()
     ax.set_title(title, fontsize=11)
     fig.tight_layout()
-    fig.savefig(path, facecolor=fig.get_facecolor())
+    fig.savefig(path)
     plt.close(fig)

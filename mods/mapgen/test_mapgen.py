@@ -55,6 +55,34 @@ def test_terrain(sample):
               "WorldEdit's sample terrain reads as WorldEdit reads it")
 
 
+def test_shapes():
+    import shapes as sh
+
+    def outward(polys, centre):
+        good = 0
+        for p in polys:
+            n = sh.normal(p)
+            m = [sum(q[i] for q in p) / len(p) for i in range(3)]
+            good += sum(n[i] * (m[i] - centre[i]) for i in range(3)) > 0
+        return good == len(polys)
+    check(outward(sh.box((0, 0, 0), (2, 2, 2)), (1, 1, 1)), "boxes face out")
+    check(outward(sh.frustum(0, 0, 3, 2, 0, 4, bottom=True), (0, 2, 0)), "cylinders and cones face out")
+    check(outward(sh.dome(0, 0, 0, 3), (0, 0, 0)) and outward(sh.dome(0, 0, 0, 3, lower=True), (0, 0, 0)), "domes face out")
+    check(outward(sh.tube((0, 0, 0), (6, 2, 1), 1), (3, 1, 0.5)), "tubes face out")
+    square = [(-2, 0), (2, 0), (2, 2), (-2, 2)]
+    check(outward(sh.loft([(0, square), (5, square)]), (2.5, 1, 0)) and
+          outward(sh.loft([(0, square[::-1]), (5, square[::-1])]), (2.5, 1, 0)), "lofts face out either way round")
+    # into .msh space: Z mirrored, and each triangle still facing out by the right-hand rule, as
+    # WorldEdit's own cube is
+    m = msh.Mesh()
+    m.box(0, (0, 0, 10), (2, 2, 12))
+    pos, nrm, uv, tri = m.segments[0]
+    check(min(p[2] for p in pos) == -12 and max(p[2] for p in pos) == -10, ".msh mirrors Z")
+    check(outward([[pos[i] for i in t] for t in tri], (1, 1, -11)), ".msh triangles face out")
+    check(all(abs(sum(a * b for a, b in zip(nrm[t[0]], sh.normal([pos[i] for i in t])))) > 0.99 for t in tri),
+          ".msh normals match their triangles")
+
+
 def test_ship():
     materials, mesh, collision = gts.ship_mesh()
     data = msh.write_msh(materials, mesh, collision)
@@ -198,6 +226,7 @@ def main():
     parser.add_argument("--worldedit-sample")
     args = parser.parse_args()
     test_terrain(args.worldedit_sample)
+    test_shapes()
     test_ship()
     with tempfile.TemporaryDirectory() as tmp:
         test_world(tmp, args.luac)

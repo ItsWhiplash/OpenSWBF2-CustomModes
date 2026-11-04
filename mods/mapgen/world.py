@@ -34,7 +34,7 @@ class World:
         self.boundary = None                # list of (x, z)
         self.hubs = []                      # (name, pos, radius)
         self.connections = []               # (name, start, end, flags)
-        self.lights = []
+        self.lights = []                    # (name, pos, colour, range): point lights
         self.terrain_name = name
 
     def layer(self, name, modes=()):
@@ -68,6 +68,10 @@ class World:
         props = [("Label", label or ""), ("CaptureRegion", name + "_capture"),
                  ("ControlRegion", name + "_control"), ("SpawnPath", name + "_spawn")]
         self.object("com_bldg_controlzone", name, pos, team=team, props=props, layer=layer)
+
+    def light(self, name, pos, colour=(1.0, 0.9, 0.7), range_=20.0):
+        """A static point light, such as inside a hangar."""
+        self.lights.append((name, pos, colour, range_))
 
     def hub(self, name, pos, radius):
         self.hubs.append((name, pos, radius))
@@ -183,9 +187,18 @@ class World:
             "\tPosition(0.000000, 400.000000, 0.000000);", "\tType(1);",
             "\tColor(1.000000, 0.952941, 0.878431);", "\tCastShadow();", "\tStatic();",
             "\tCastSpecular(1);", "\tPS2BlendMode(0);", "\tTileUV(1.000000,1.000000);",
-            "\tOffsetUV(0.000000,0.000000);", "}", "",
+            "\tOffsetUV(0.000000,0.000000);", "}", ""] + self._point_lights() + [
             "GlobalLights()", "{", "\tEditorGlobalDirIconSize(10);", '\tLight1("sun");', '\tLight2("");',
             "\tTop(120, 125, 140);", "\tBottom(70, 65, 60);", "}", ""]) + "\n"
+
+    def _point_lights(self):
+        out = []
+        for i, (name, pos, colour, range_) in enumerate(self.lights, start=1):
+            out += ['Light("%s", %d)' % (name, i), "{", "\tRotation(1.000000, 0.000000, 0.000000, 0.000000);",
+                    "\tPosition(%s, %s, %s);" % tuple(f(v) for v in pos), "\tType(2);",
+                    "\tColor(%s, %s, %s);" % tuple(f(v) for v in colour), "\tStatic();",
+                    "\tCastSpecular(1);", "\tRange(%s);" % f(range_), "}", ""]
+        return out
 
     def _req(self):
         out = ["ucft", "{"]

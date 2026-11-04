@@ -3,6 +3,12 @@ src/assets/msh/scene_io_save.cpp), shaped the way its "blocks" export them: a nu
 a "geometry" static mesh, and a hidden "collision" mesh, plus a prop .odf and a .msh.option.
 The mod tools' modelmunge turns these into game models.
 
+Geometry comes in as polygons in the game's (world file) coordinates, wound counter-clockwise
+seen from outside (shapes.py). A .msh is in WorldEdit's own space, which mirrors Z: its blocks are
+exported from there unchanged, and its cube is wound so the right-hand normal points out. So
+every point is written as (x, y, -z), with the order of each polygon reversed to keep it facing
+out after the mirror.
+
 Chunks are tag, size, payload; every size includes padding to 4 bytes; strings end in NUL.
 """
 import math
@@ -19,10 +25,11 @@ def _string(s):
 
 
 class Material:
-    def __init__(self, name, texture="", specular=False, color=(1.0, 1.0, 1.0, 1.0)):
+    def __init__(self, name, texture="", specular=False, glow=False, color=(1.0, 1.0, 1.0, 1.0)):
         self.name = name
         self.texture = texture          # a .tga the munge can find, without the extension
-        self.flags = 128 if specular else 0
+        # material flags as WorldEdit's material.hpp has them: glow 2, specular 128
+        self.flags = (128 if specular else 0) | (2 if glow else 0)
         self.color = color
 
 
@@ -35,45 +42,33 @@ class Mesh:
     def _segment(self, material):
         return self.segments.setdefault(material, ([], [], [], []))
 
-    def quad(self, material, a, b, c, d, uv_scale=0.1):
-        """A flat quad a-b-c-d (counter-clockwise seen from the front)."""
-        pos, nrm, uv, tri = self._segment(material)
-        n = _normal(a, b, c)
-        base = len(pos)
-        u_axis = _sub(b, a)
-        v_axis = _sub(d, a)
-        lu = _len(u_axis) * uv_scale
-        lv = _len(v_axis) * uv_scale
-        for p, (s, t) in zip((a, b, c, d), ((0, 0), (lu, 0), (lu, lv), (0, lv))):
-            pos.append(p)
-            nrm.append(n)
-            uv.append((s, t))
-        tri.append((base, base + 1, base + 2))
-        tri.append((base, base + 2, base + 3))
+    def polys(self, material, polys, uv_scale=0.1):
+        """Polygons from shapes.py (triangles or quads in game coordinates, counter-clockwise
+        seen from outside), textured by projecting onto the plane they face most."""
+        for poly in polys:
+            pos, nrm, uv, tri = self._segment(material)
+            poly = [(p[0], p[1], -p[2]) for p in reversed(poly)]      # into .msh space
+            n = _normal(*poly[:3])
+            ax = max(range(3), key=lambda i: abs(n[i]))
+            u_i, v_i = [(2, 1), (0, 2), (0, 1)][ax]
+            base = len(pos)
+            for p in poly:
+                pos.append(tuple(p))
+                nrm.append(n)
+                uv.append((p[u_i] * uv_scale, p[v_i] * uv_scale))
+            for k in range(1, len(poly) - 1):
+                tri.append((base, base + k, base + k + 1))
 
     def box(self, material, lo, hi, faces="xXyYzZ", uv_scale=0.1):
-        """An axis-aligned box from corner lo to corner hi; faces picks which sides to make
-        (x/X: -x/+x, y/Y: bottom/top, z/Z: -z/+z), outward-facing."""
-        x0, y0, z0 = lo
-        x1, y1, z1 = hi
-        if "x" in faces:
-            self.quad(material, (x0, y0, z1), (x0, y0, z0), (x0, y1, z0), (x0, y1, z1), uv_scale)
-        if "X" in faces:
-            self.quad(material, (x1, y0, z0), (x1, y0, z1), (x1, y1, z1), (x1, y1, z0), uv_scale)
-        if "y" in faces:
-            self.quad(material, (x0, y0, z0), (x0, y0, z1), (x1, y0, z1), (x1, y0, z0), uv_scale)
-        if "Y" in faces:
-            self.quad(material, (x0, y1, z0), (x1, y1, z0), (x1, y1, z1), (x0, y1, z1), uv_scale)
-        if "z" in faces:
-            self.quad(material, (x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0), uv_scale)
-        if "Z" in faces:
-            self.quad(material, (x1, y0, z1), (x0, y0, z1), (x0, y1, z1), (x1, y1, z1), uv_scale)
+        import shapes
+        self.polys(material, shapes.box(lo, hi, faces), uv_scale)
 
     def triangle_count(self):
         return sum(len(s[3]) for s in self.segments.values())
 
     def bounds(self):
-        pts = [p for s in self.segments.values() for p in s[0]]
+        """In game coordinates."""
+        pts = [(p[0], p[1], -p[2]) for s in self.segments.values() for p in s[0]]
         return tuple(min(p[i] for p in pts) for i in range(3)), tuple(max(p[i] for p in pts) for i in range(3))
 
 

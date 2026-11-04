@@ -147,8 +147,8 @@ def texture_weights(h):
     X, Z = grid_coords()
     gz, gx = np.gradient(h, GRID)
     slope = np.hypot(gx, gz)
-    rock = np.clip((slope - 0.6) / 0.3, 0, 1)
-    rock = np.maximum(rock, np.clip((h - 200) / 80, 0, 1))
+    # snow holds wherever the slope is gentle, even high up: rock only on steep faces
+    rock = np.clip((slope - 0.95) / 0.4, 0, 1)
     lake = np.clip((210 - np.hypot(X - 820, Z + 380)) / 30, 0, 1) * (1 - rock)
     packed = np.clip((slope - 0.15) / 0.25, 0, 1)
     packed = np.maximum(packed, np.clip(1 - (trench_line(X, Z) - 4) / 4, 0, 1))
@@ -180,47 +180,80 @@ def build_terrain(h, code):
 
 
 # ---------------------------------------------------------------- structures (block models)
-# Each is a list of boxes in its own frame (Y up from its base, open side facing -Z).
+# Each structure is parts: (name, polygons, material, colour, glows, collides), in its own frame
+# (Y up from its base, its front facing -Z). Material 0 is the plating, 1 the glowing lights.
+
+WALL = (0.80, 0.82, 0.86)
+TRIM = (0.55, 0.58, 0.63)
+LAMP = (1.0, 0.94, 0.78)
+SHIELD_GLOW = (0.55, 0.85, 1.0)
+
 
 def base_bunker():
-    """The Rebel base: a long bunker set into the mountain, a 140 x 28 m hangar open to the south."""
-    boxes = [
-        ((-130, 0, 0), (-70, 46, 120)),           # west block
-        ((70, 0, 0), (130, 46, 120)),             # east block
-        ((-70, 28, 0), (70, 46, 120)),            # over the hangar
-        ((-70, 0, 60), (70, 28, 120)),            # the hangar's back
-        ((-70, -2, 0), (70, 0, 60)),              # the hangar floor
-        ((-150, 0, 20), (-130, 30, 120)),         # side wings
-        ((130, 0, 20), (150, 30, 120)),
-        ((-40, 46, 30), (40, 58, 110)),           # roof housing
-    ]
-    # door frame ribs
-    for x in (-70, -35, 0, 35, 70):
-        boxes.append(((x - 2, 28, -4), (x + 2, 46, 0)))
-    return boxes
+    """The Rebel base: a bunker under a vaulted roof, its 140 x 28 m hangar open to the south."""
+    import math
+    import shapes as sh
+    shell = []
+    shell += sh.box((-150, 0, 0), (-70, 46, 120), faces="xyYzZ")      # west block
+    shell += sh.box((70, 0, 0), (150, 46, 120), faces="XyYzZ")        # east block
+    shell += sh.box((-70, 28, 0), (70, 46, 120), faces="YzZ")         # over the hangar
+    shell += sh.box((-70, 0, 60), (70, 28, 120), faces="Z")           # the hangar's back
+    shell += sh.box((-70, -2, 0), (70, 0, 60), faces="z")             # the floor's edge
+    # a vaulted roof along the bunker: half-round sections
+    arch = [(70 + 34 * math.cos(math.pi * k / 10), 46 + 22 * math.sin(math.pi * k / 10)) for k in range(11)]
+    shell += sh.loft([(-140, arch), (140, arch)])
+    shell += sh.box((-160, 0, 10), (-150, 30, 110))                   # buttresses
+    shell += sh.box((150, 0, 10), (160, 30, 110))
+    parts = [("shell", shell, 0, WALL, False, True)]
+    # the blast doors, drawn back to either side of the opening, and the frame
+    trim = sh.box((-76, 0, -6), (-70, 46, 4)) + sh.box((70, 0, -6), (76, 46, 4)) + sh.box((-76, 28, -6), (76, 34, 4))
+    trim += sh.box((-90, 0, -4), (-76, 28, 2)) + sh.box((76, 0, -4), (90, 28, 2))
+    parts.append(("trim", trim, 0, TRIM, False, True))
+    # inside: the lit floor, walls and back, a darker ceiling
+    bay = sh.box((-70, -2, 0), (70, 0, 60), faces="Y") + sh.box((-70, 0, 60), (70, 28, 120), faces="z")
+    bay += sh.box((-150, 0, 0), (-70, 28, 60), faces="X") + sh.box((70, 0, 0), (150, 28, 60), faces="x")
+    parts.append(("bay", bay, 0, (0.70, 0.66, 0.58), True, True))
+    parts.append(("bay ceiling", sh.box((-70, 28, 0), (70, 30, 60), faces="y"), 0, (0.34, 0.34, 0.36), True, True))
+    lamps = []
+    for k in range(4):
+        lamps += sh.box((-64, 27.4, 6 + k * 14), (64, 28, 8 + k * 14), faces="y")
+    lamps += sh.box((-70, 34, -6.4), (70, 35.2, -6), faces="z")
+    parts.append(("lamps", lamps, 1, LAMP, True, False))
+    # a dish antenna on the roof
+    dish = sh.frustum(-110, 60, 3, 2, 46, 62, sides=8) + sh.dome(-110, 70, 60, 10, rings=3, sides=14, lower=True)
+    parts.append(("dish", dish, 0, TRIM, False, False))
+    return parts
 
 
 def shield_generator():
-    """A stepped dome on a platform, with a mast."""
-    boxes = [((-24, 0, -24), (24, 4, 24))]
-    for k, (r, h0, h1) in enumerate(((20, 4, 12), (16, 12, 18), (11, 18, 22), (6, 22, 25))):
-        boxes.append(((-r, h0, -r), (r, h1, r)))
-    boxes.append(((-1.5, 25, -1.5), (1.5, 45, 1.5)))
-    return boxes
+    """A dome on a drum, a glowing ring round its waist, and a mast with a dish."""
+    import shapes as sh
+    body = sh.frustum(0, 0, 26, 24, 0, 6, sides=24) + sh.frustum(0, 0, 21, 21, 6, 10, sides=24, top=False)
+    body += sh.dome(0, 10, 0, 21, rings=7, sides=24)
+    body += sh.frustum(0, 0, 2.2, 1.4, 30, 58, sides=8)
+    dish = sh.dome(0, 62, 0, 7, rings=3, sides=12, lower=True)
+    ring = sh.frustum(0, 0, 21.6, 21.6, 9.2, 10.6, sides=24, top=False)
+    return [("body", body, 0, WALL, False, True), ("dish", dish, 0, TRIM, False, False),
+            ("ring", ring, 1, SHIELD_GLOW, True, False)]
 
 
 def ion_cannon():
-    """A ball turret on a base, its barrel raised to the sky."""
-    boxes = [((-18, 0, -18), (18, 10, 18))]
-    for r, h0, h1 in ((14, 10, 16), (17, 16, 26), (14, 26, 32), (8, 32, 35)):
-        boxes.append(((-r, h0, -r), (r, h1, r)))
-    for k in range(6):                             # the barrel, stepping up and south
-        boxes.append(((-3, 26 + 4 * k, -17 - 5 * k), (3, 32 + 4 * k, -10 - 5 * k)))
-    return boxes
+    """A ball turret on a pedestal, its barrel raised to the sky."""
+    import shapes as sh
+    base = sh.frustum(0, 0, 22, 15, 0, 12, sides=20) + sh.frustum(0, 0, 9, 9, 12, 16, sides=16, top=False)
+    ball = sh.dome(0, 30, 0, 17, rings=6, sides=20) + sh.dome(0, 30, 0, 17, rings=6, sides=20, lower=True)
+    barrel = sh.tube((0, 34, -8), (0, 72, -48), 4.0, sides=12) + sh.tube((0, 72, -48), (0, 76, -52), 5.0, sides=12)
+    muzzle = sh.tube((0, 76, -52), (0, 76.3, -52.3), 3.5, sides=12)
+    return [("base", base, 0, TRIM, False, True), ("ball", ball, 0, WALL, False, True),
+            ("barrel", barrel, 0, TRIM, False, True), ("muzzle", muzzle, 1, SHIELD_GLOW, True, False)]
 
 
 def gun_bunker():
-    return [((-7, 0, -4), (7, 5, 4)), ((-5, 5, -3), (5, 6.5, 3)), ((-1, 3.5, -9), (1, 4.5, -4))]
+    """A round turret behind the trench, its gun facing the plain."""
+    import shapes as sh
+    body = sh.frustum(0, 0, 9, 7, 0, 4, sides=16) + sh.dome(0, 4, 0, 6, rings=3, sides=16)
+    gun = sh.tube((0, 6.5, -4), (0, 7, -14), 0.8, sides=8) + sh.tube((2, 6.5, -4), (2, 7, -14), 0.8, sides=8)
+    return [("body", body, 0, WALL, False, True), ("guns", gun, 0, TRIM, False, False)]
 
 
 STRUCTURES = {
@@ -233,10 +266,11 @@ STRUCTURES = {
 
 def structure_model(fn, texture):
     mesh, collision = msh.Mesh(), msh.Mesh()
-    for lo, hi in fn():
-        mesh.box(0, lo, hi, uv_scale=1 / 16.0)
-        collision.box(0, lo, hi)
-    return [msh.Material("plating", texture=texture)], mesh, collision
+    for name, polys, material, colour, glows, collides in fn():
+        mesh.polys(material, polys, uv_scale=1 / 16.0)
+        if collides:
+            collision.polys(0, polys)
+    return [msh.Material("plating", texture=texture), msh.Material("lights", texture="hth_glow", glow=True)], mesh, collision
 
 
 def placements(h):
@@ -250,14 +284,15 @@ def placements(h):
     return out
 
 
-def world_boxes(h):
-    """Every structure's boxes in world space, for the preview."""
-    boxes = []
+def world_parts(h):
+    """Every structure's parts in world space, for the preview."""
+    import shapes as sh
+    out = []
     for kind, x, z, yaw in placements(h):
         y = FLOOR if kind == "base" else height_at(h, x, z)
-        for lo, hi in STRUCTURES[kind][0]():
-            boxes.append(((x + lo[0], y + lo[1], z + lo[2]), (x + hi[0], y + hi[1], z + hi[2])))
-    return boxes
+        for name, polys, material, colour, glows, collides in STRUCTURES[kind][0]():
+            out.append((sh.offset(sh.rotate_y(polys, yaw), x, y, z), colour, glows))
+    return out
 
 
 # ---------------------------------------------------------------- textures
@@ -286,6 +321,7 @@ def make_textures(code, seed=5):
             row.append((g, g + 2, g + 8))
         plating.append(row)
     out[c + "_plating.tga"] = tga(n, n, plating)
+    out[c + "_glow.tga"] = tga(8, 8, [[(255, 255, 255)] * 8 for _ in range(8)])
     return out
 
 
@@ -303,6 +339,12 @@ def build_world(code, h):
     for i, (kind, x, z, yaw) in enumerate(placements(h)):
         y = FLOOR if kind == "base" else height_at(h, x, z)
         w.object("%s_%s" % (c, kind), "%s%d" % (kind, i + 1), (x, y, z), yaw=yaw)
+    # lights in the base hangar, and at the shield generator and ion cannon
+    bx, bz = BASE
+    for k, dx in enumerate((-45.0, 0.0, 45.0)):
+        w.light("hangar%d" % (k + 1), (bx + dx, FLOOR + 24.0, bz - 30.0), (1.0, 0.94, 0.80), 34.0)
+    w.light("shieldgen", (-620.0, height_at(h, -620, 1040) + 14.0, 1040.0), (0.55, 0.85, 1.0), 40.0)
+    w.light("ioncannon", (700.0, height_at(h, 700, 1080) + 20.0, 1080.0), (0.55, 0.85, 1.0), 30.0)
 
     # vehicles: walkers for the Empire at the landing, speeders and tauntauns for the Rebels
     def spawn(name, x, z, cp, imp="", all_=""):
@@ -484,16 +526,26 @@ def build(out_dir, code="HTH"):
 def render(h, w, out_dir):
     import preview
     preview.PALETTE = [np.array([0.93, 0.95, 0.98]), np.array([0.80, 0.84, 0.90]), np.array([0.40, 0.42, 0.46])]
-    preview.ROCK_HEIGHT = (200.0, 80.0)
+    preview.ROCK_HEIGHT = (100000.0, 1.0)
+    preview.ROCK_SLOPE = (0.95, 0.4)
+    preview.SUN = np.array([-0.35, 0.75, -0.55]) / np.linalg.norm([-0.35, 0.75, -0.55])   # low, from the south-west
+    bx, bz = BASE
     bx, bz = BASE
     views = [
         ("view_3d.png", (900.0, 900.0, -2300.0), (-80.0, 60.0, 300.0),
-         "Hoth: the whole battlefield from the Imperial side"),
-        ("view_base.png", (420.0, 120.0, 520.0), (0.0, 55.0, 1180.0),
-         "Hoth: the trench line, shield generator, ion cannon and the base hangar"),
+         "Hoth: the whole battlefield from the Imperial side", True),
+        ("shot_trench.png", (420.0, 70.0, 470.0), (0.0, 55.0, 1180.0),
+         "Hoth: the trench line, with the shield generator, ion cannon and base beyond", False),
+        ("shot_base.png", (bx + 150.0, FLOOR + 30.0, bz - 330.0), (bx, FLOOR + 22.0, bz - 40.0),
+         "Hoth: the base hangar under the mountains", False),
+        ("shot_shield.png", (-560.0, 70.0, 930.0), (-620.0, 45.0, 1040.0),
+         "Hoth: the shield generator", False),
+        ("shot_cannon.png", (760.0, 60.0, 980.0), (700.0, 70.0, 1080.0),
+         "Hoth: the ion cannon", False),
+        ("shot_landing.png", (120.0, 60.0, -1480.0), (-60.0, 50.0, -300.0),
+         "Hoth: from the Imperial landing, the long march north", False),
     ]
-    return preview.render(h, w, out_dir, world_boxes(h), (0.0, 0.0, 0.0), grid=GRID, map_name="Hoth", views=views,
-                          bay=None)
+    return preview.render(h, w, out_dir, world_parts(h), views, grid=GRID, map_name="Hoth")
 
 
 def main():

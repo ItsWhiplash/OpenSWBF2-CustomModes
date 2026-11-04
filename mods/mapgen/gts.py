@@ -84,16 +84,42 @@ def make_heights(seed=7):
     rng = np.random.default_rng(seed)
     X, Z = grid_coords()
     h = 20.0 + 6.0 * smooth_noise(LENGTH, 12, rng) + 2.5 * smooth_noise(LENGTH, 40, rng)
+    # wind-blown dune ripples, running north-east
+    h += 1.2 * np.sin((X * 0.7 + Z * 0.7) / 9.0 + 3 * smooth_noise(LENGTH, 8, rng)) * smooth_noise(LENGTH, 6, rng)
 
-    # the mountain ring past 820 m from the centre
-    r = np.hypot(X, Z)
+    # the mountain ring past about 820 m from the centre: ridged noise for sharp crests
+    ridged = 1 - np.abs(2 * smooth_noise(LENGTH, 14, rng) - 1)
+    ridged = 0.6 * ridged ** 2 + 0.4 * smooth_noise(LENGTH, 5, rng)
+    r = np.hypot(X, Z) + 60 * (smooth_noise(LENGTH, 9, rng) - 0.5)
     ring = np.clip((r - 820) / 180, 0, 1)
-    h += ring ** 1.5 * (110 + 90 * smooth_noise(LENGTH, 10, rng))
+    h += ring ** 1.5 * (90 + 190 * ridged)
 
-    # three mesas
-    h = np.maximum(h, 20 + mesa(X, Z, -520, -180, 110, 45, 0))      # west, ramp east
-    h = np.maximum(h, 20 + mesa(X, Z, 520, -120, 100, 55, 180))     # east, ramp west
-    h = np.maximum(h, 20 + mesa(X, Z, -380, 420, 80, 70, -30))      # north-west lookout
+    # three sandstone mesas, their cliffs banded in strata
+    mesas = np.zeros_like(h)
+    mesas = np.maximum(mesas, mesa(X, Z, -520, -180, 110, 45, 0))      # west, ramp east
+    mesas = np.maximum(mesas, mesa(X, Z, 520, -120, 100, 55, 180))     # east, ramp west
+    mesas = np.maximum(mesas, mesa(X, Z, -380, 420, 80, 70, -30))      # north-west lookout
+    gz, gx = np.gradient(mesas, GRID)
+    cliff = np.clip((np.hypot(gx, gz) - 0.4) / 0.4, 0, 1)
+    banded = np.floor(mesas / 6.0) * 6.0 + 2.0 * np.clip((mesas % 6.0) - 4.0, 0, 2) / 2
+    mesas = mesas * (1 - cliff) + banded * cliff
+    h = np.maximum(h, 20 + mesas)
+
+    # sandstone spires and boulders across the valley floor, clear of the posts
+    for k in range(22):
+        cx, cz = rng.uniform(-760, 760), rng.uniform(-760, 700)
+        if min(math.hypot(cx - p[1], cz - p[2]) for p in GROUND_POSTS) < 110 or abs(cz - 60 * math.sin(cx / 260.0)) < 70:
+            continue
+        if math.hypot(cx, cz) > 780:
+            continue
+        if k % 3 == 0:
+            rad, tall = rng.uniform(8, 14), rng.uniform(25, 45)
+            d2 = ((X - cx) ** 2 + (Z - cz) ** 2) / (rad * rad)
+            spire = tall * np.clip(1 - d2, 0, 1) ** 0.5
+            h = np.maximum(h, 20 + np.floor(spire / 5.0) * 5.0)
+        else:
+            rad, tall = rng.uniform(12, 30), rng.uniform(4, 10)
+            h += np.exp(-(((X - cx) ** 2 + (Z - cz) ** 2) / (rad * rad))) * tall
 
     # the canyon: a winding trench across the valley, bridged at the centre
     wiggle = 60 * np.sin(X / 260.0)
@@ -157,51 +183,120 @@ def height_at(h, x, z):
 
 # ---------------------------------------------------------------- the ship
 
-# The hull, from boxes, in the ship's own frame: X along the ship (bow at +X), Y up from the deck,
-# Z across. The hangar is a 160 x 30 m bay open on the -Z (south) side: deck at Y 0, ceiling at 30.
-HANGAR = (-80.0, 80.0)        # X extent
-HANGAR_DEPTH = 80.0           # from the -Z side in to Z = 0
+# In the ship's own frame: X along the ship (bow at +X), Y up from the hangar deck, Z across.
+# The hangar is a pod under the hull, 180 x 26 m inside, open on the -Z (south) side, 90 m deep.
+HANGAR = (-90.0, 90.0)        # X extent of the bay
+HANGAR_DEPTH = 70.0           # from the -Z opening in to the back wall at Z = 20 (centre at -25)
+
+HULL = (0.66, 0.68, 0.72)
+DARK = (0.36, 0.38, 0.43)
+ENGINE_GLOW = (0.62, 0.86, 1.0)
+LAMP = (1.0, 0.93, 0.72)
 
 
-def ship_boxes():
-    boxes = []
-    # hull segments, wide at the stern, narrowing to the bow: (x0, x1, half width, bottom, top)
-    segments = [(-300, -160, 90, -25, 45), (-160, -80, 85, -25, 42), (80, 180, 70, -22, 36),
-                (180, 260, 45, -18, 28), (260, 320, 20, -12, 18)]
-    for x0, x1, w, y0, y1 in segments:
-        boxes.append(((x0, y0, -w), (x1, y1, w)))
-    # the hangar section: full hull behind the bay, a slab under the deck, a slab over the ceiling
-    hx0, hx1 = HANGAR
-    boxes.append(((hx0, -25, 0), (hx1, 40, 85)))
-    boxes.append(((hx0, -25, -85), (hx1, 0, 0)))          # floor: its top face is the deck
-    boxes.append(((hx0, 30, -85), (hx1, 40, 0)))          # ceiling slab
-    # superstructure and bridge
-    boxes.append(((-240, 45, -28), (-150, 95, 28)))
-    boxes.append(((-225, 95, -45), (-185, 112, 45)))
-    # engines
-    for z in (-55, 0, 55):
-        boxes.append(((-335, -10, z - 22), (-300, 30, z + 22)))
-    # surface detail: plating blocks, turrets and antennae on the upper hull (fixed seed)
+def _section(x, w, yb, yt, ridge):
+    """A hull cross-section: a wide flat keel, bevelled sides and a raised spine."""
+    mid = yb + 0.3 * (yt - yb)
+    return (x, [(-w, mid), (-w * 0.62, yb), (w * 0.62, yb), (w, mid), (w * 0.36, yt), (0.0, yt + ridge),
+                (-w * 0.36, yt)])
+
+
+def ship_parts():
+    """(name, polygons, material, colour, glows, collides) for every part of the ship."""
     import random
+    import shapes as sh
+    parts = []
+    sections = [_section(-300, 112, 30, 72, 12), _section(-160, 104, 28, 68, 14), _section(0, 86, 28, 62, 14),
+                _section(150, 60, 30, 54, 10), _section(270, 30, 32, 45, 6), _section(345, 4, 36, 40, 1)]
+    parts.append(("hull", sh.loft(sections), 0, HULL, False, True))
+
+    # the hangar pod under the hull
+    pod = []
+    pod += sh.box((-96, -14, -70), (96, 0, 70), faces="xXyzZ")       # floor slab (its top is the deck, below)
+    pod += sh.box((-96, 26, -70), (96, 30, 70), faces="xXYzZ")        # ceiling slab (underside below)
+    pod += sh.box((-90, 0, 20), (90, 26, 70), faces="xXYZ")           # back wall (its face below)
+    pod += sh.box((-96, 0, -70), (-90, 26, 70), faces="xyYzZ")        # end walls (inner faces below)
+    pod += sh.box((90, 0, -70), (96, 26, 70), faces="XyYzZ")
+    pod += sh.loft([(-96, [(-70, -14), (70, -14), (55, -26), (-55, -26)]),
+                    (96, [(-70, -14), (70, -14), (55, -26), (-55, -26)])])   # bevelled keel
+    parts.append(("pod", pod, 0, HULL, False, True))
+    # the bay's inside: the deck, back wall and end walls lit by its lamps, a darker ceiling
+    bay = sh.box((-96, -14, -70), (96, 0, 20), faces="Y")             # the deck (up to the back wall)
+    bay += sh.box((-90, 0, 20), (90, 26, 70), faces="z")              # the back wall
+    bay += sh.box((-96, 0, -70), (-90, 26, 20), faces="X")            # the end walls' inner faces
+    bay += sh.box((90, 0, -70), (96, 26, 20), faces="x")
+    parts.append(("bay", bay, 0, (0.62, 0.56, 0.46), True, True))
+    parts.append(("bay ceiling", sh.box((-96, 26, -70), (96, 30, 20), faces="y"), 0, (0.30, 0.29, 0.28), True, True))
+    # lamp strips across the bay's ceiling, and a lit doorway frame
+    lamps = []
+    for k in range(5):
+        z = -60 + k * 18
+        lamps += sh.box((-84, 25.2, z), (84, 25.8, z + 2), faces="y")
+    lamps += sh.box((-96, 26, -71), (96, 27.2, -70), faces="z")
+    parts.append(("lamps", lamps, 1, LAMP, True, False))
+
+    # the command tower and bridge, at the stern
+    tower = sh.loft([(-262, [(-34, 70), (34, 70), (24, 112), (-24, 112)]),
+                     (-188, [(-26, 70), (26, 70), (18, 108), (-18, 108)])])
+    tower += sh.box((-256, 112, -58), (-214, 124, 58))     # the bridge
+    tower += sh.box((-252, 124, -20), (-220, 130, 20))
+    tower += sh.dome(-236, 130, -42, 9, rings=4, sides=12)
+    tower += sh.dome(-236, 130, 42, 9, rings=4, sides=12)
+    tower += sh.frustum(-236, 0, 3, 1, 130, 150, sides=8)  # a mast
+    parts.append(("tower", tower, 0, HULL, False, True))
+    windows = sh.box((-256.2, 116, -56), (-256, 120, 56), faces="x") + sh.box((-214, 116, -56), (-213.8, 120, 56), faces="X")
+    parts.append(("windows", windows, 1, (0.85, 0.95, 1.0), True, False))
+
+    # engines: three nacelles, and their glow
+    engines, glow = [], []
+    for z, r in ((-62, 17), (0, 21), (62, 17)):
+        engines += sh.tube((-290, 50, z), (-336, 50, z), r, sides=16)
+        engines += sh.tube((-336, 50, z), (-342, 50, z), r * 0.8, sides=16, caps=False)
+        glow += sh.frustum(0, 0, r * 0.78, r * 0.78, 0, 0.2, sides=16)[:0]
+        disc = sh.tube((-342.0, 50, z), (-342.6, 50, z), r * 0.78, sides=16)
+        glow += disc
+    parts.append(("engines", engines, 0, DARK, False, True))
+    parts.append(("engine glow", glow, 1, ENGINE_GLOW, True, False))
+
+    # surface detail along the top: plating blocks and turrets (fixed seed)
     rng = random.Random(11)
-    for x0, x1, w, y0, y1 in segments + [(hx0, hx1, 85, -25, 40)]:
-        for _ in range(int((x1 - x0) / 14)):
-            bx = rng.uniform(x0 + 4, x1 - 14)
-            bz = rng.uniform(-w + 6, w - 14)
-            size = rng.choice((6, 8, 10, 14))
-            tall = rng.choice((2, 3, 4, 6, 10))
-            boxes.append(((bx, y1, bz), (bx + size, y1 + tall, bz + size * rng.uniform(0.5, 1.5))))
-    return boxes
+    detail = []
+    for _ in range(60):
+        x = rng.uniform(-150, 260)
+        # the top deck's height and half width at x, between the sections either side
+        for (xa, pa), (xb, pb) in zip(sections, sections[1:]):
+            if xa <= x <= xb:
+                t = (x - xa) / (xb - xa)
+                top = pa[4][1] * (1 - t) + pb[4][1] * t
+                half = pa[4][0] * (1 - t) + pb[4][0] * t
+                break
+        z = rng.uniform(-half * 0.8, half * 0.8)
+        size = rng.choice((5, 7, 9, 12))
+        if rng.random() < 0.3:
+            detail += sh.frustum(x, z, size * 0.5, size * 0.4, top, top + 3, sides=10)
+            detail += sh.dome(x, top + 3, z, size * 0.4, rings=3, sides=10)
+        else:
+            detail += sh.box((x, top, z), (x + size, top + rng.choice((1.5, 2.5, 4)), z + size * rng.uniform(0.6, 1.4)))
+    parts.append(("detail", detail, 0, DARK, False, False))
+    return parts
 
 
 def ship_mesh():
     hull = msh.Material("hull", texture="gts_hull")
-    mesh = msh.Mesh()
-    collision = msh.Mesh()
-    for lo, hi in ship_boxes():
-        mesh.box(0, lo, hi, uv_scale=1 / 32.0)
-        collision.box(0, lo, hi)
-    return [hull], mesh, collision
+    lights = msh.Material("lights", texture="gts_glow", glow=True)
+    mesh, collision = msh.Mesh(), msh.Mesh()
+    for name, polys, material, colour, glows, collides in ship_parts():
+        mesh.polys(material, polys, uv_scale=1 / 32.0)
+        if collides:
+            collision.polys(0, polys)
+    return [hull, lights], mesh, collision
+
+
+def ship_world_parts():
+    """The ship's parts in world space, for the preview."""
+    import shapes as sh
+    return [(sh.offset(polys, SHIP_X, SHIP_Y, SHIP_Z), colour, glows)
+            for name, polys, material, colour, glows, collides in ship_parts()]
 
 
 # ---------------------------------------------------------------- textures
@@ -238,6 +333,7 @@ def make_textures(code, seed=3):
             row.append((g, g, g + 6))
         hull.append(row)
     out["gts_hull.tga"] = tga(n, n, hull)
+    out["gts_glow.tga"] = tga(8, 8, [[(255, 255, 255)] * 8 for _ in range(8)])
     return out
 
 
@@ -256,8 +352,10 @@ def build_world(code, h):
                  for a in [i * math.pi / 4 for i in range(8)]]
         w.command_post(name, pos, team, layer=conquest, label=label, spawn=spawn, control_height=12)
 
-    # the ship, in the base layer so every mode has it
+    # the ship, in the base layer so every mode has it, and lights in its hangar
     w.object(code.lower() + "_ship", "ship", (SHIP_X, SHIP_Y, SHIP_Z))
+    for k, dx in enumerate((-60.0, -20.0, 20.0, 60.0)):
+        w.light("hangar%d" % (k + 1), (SHIP_X + dx, SHIP_Y + 22.0, SHIP_Z - 25.0), (1.0, 0.92, 0.75), 38.0)
 
     # fighters for both sides at the landing zone and under the ship (classes set in the scripts'
     # sides; ClassXxxATK / ClassXxxDEF name what spawns for each era and role)
@@ -464,9 +562,30 @@ def main():
     print("  %d objects, %d regions, %d paths, %d bot hubs, %d links"
           % (len(w.objects), len(w.regions), len(w.paths), len(w.hubs), len(w.connections)))
     if args.preview:
-        import preview
-        for path in preview.render(h, w, os.path.join(args.out, "preview"), ship_boxes(), (SHIP_X, SHIP_Y, SHIP_Z)):
+        for path in render(h, w, os.path.join(args.out, "preview")):
             print("  preview: %s" % path)
+
+
+def render(h, w, out_dir):
+    import preview
+    preview.PALETTE = [preview.SAND, preview.DIRT, preview.ROCK]
+    preview.ROCK_HEIGHT = (90.0, 60.0)
+    preview.ROCK_SLOPE = (0.55, 0.3)
+    preview.SUN = np.array([0.45, 0.8, 0.4]) / np.linalg.norm([0.45, 0.8, 0.4])
+    sx, sy, sz = SHIP_X, SHIP_Y, SHIP_Z
+    views = [
+        ("view_3d.png", (520.0, 620.0, -1180.0), (-40.0, 140.0, 220.0),
+         "Ground to Space: the valley, and the ship %d m above it" % sy, True),
+        ("shot_valley.png", (260.0, 90.0, -640.0), (0.0, 240.0, 330.0),
+         "Ground to Space: from the South Landing, looking up the valley", False),
+        ("shot_hangar.png", (sx + 260.0, sy - 30.0, sz - 430.0), (sx - 20.0, sy + 20.0, sz - 30.0),
+         "Ground to Space: a fighter's approach to the hangar", False),
+        ("shot_stern.png", (sx - 620.0, sy + 90.0, sz - 260.0), (sx - 120.0, sy + 40.0, sz),
+         "Ground to Space: the ship's stern, tower and engines", False),
+        ("shot_mesa.png", (-300.0, 75.0, -330.0), (-560.0, 60.0, -160.0),
+         "Ground to Space: the West Mesa's strata", False),
+    ]
+    return preview.render(h, w, out_dir, ship_world_parts(), views, grid=GRID, map_name="Ground to Space")
 
 
 if __name__ == "__main__":

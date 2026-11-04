@@ -19,4 +19,9 @@ python3 mods/custommodes/build.py --luac "$BIN/luac" --out "$BIN/out" > /dev/nul
 echo "syntax: ok"
 python3 mods/custommodes/tests/test_build.py "$BIN/out"
 python3 mods/custommodes/build.py --dump-keys > "$BIN/text_keys.lua"
+if python3 -c "import numpy, matplotlib" 2>/dev/null; then
+	python3 mods/mapgen/test_mapgen.py --luac "$BIN/luac"
+else
+	echo "mapgen: skipped (needs numpy and matplotlib)"
+fi
 "$BIN/lua" mods/custommodes/tests/mock_engine.lua mods/custommodes/tests/harness.lua mods/custommodes/tests/test_payload.lua mods/custommodes/tests/test_rush.lua mods/custommodes/tests/test_horde.lua mods/custommodes/tests/test_snd.lua mods/custommodes/tests/test_inf.lua "$BIN/text_keys.lua" mods/custommodes/tests/summary.lua
